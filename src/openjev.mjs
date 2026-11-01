@@ -10,6 +10,11 @@ const PROVIDERS = Object.freeze({
 const LIMIT_STATE = 14000;
 const ERROR_LIMIT = 180;
 const DEFAULT_TIMEOUT = 7500;
+const SAFE_STATIC_COMMANDS = new Set([
+  'inspect-artifact', 'inspect-binary-layout', 'inspect-pe-imports',
+  'inspect-pe-certificates', 'inspect-elf-notes', 'inspect-sqlite-database',
+  'inspect-model-artifact', 'analyze-javascript-application'
+]);
 
 export function jevConfiguration(env = process.env) {
   const requested = env.REA_JEV_PROVIDER === 'typesafe' ? 'typesafe' : 'codiv';
@@ -111,7 +116,7 @@ export async function choosePlan(plan, { type, question }, log = () => {}, decis
 
 /** System 1 - gate: deterministic allowlist always wins over a probabilistic answer. */
 export async function gateInspection(step, { type, question }, log = () => {}, decisions = [], options = {}) {
-  if (!step || !/^[a-z][a-z0-9-]{2,55}$/.test(step.command)) return false;
+  if (!step || !SAFE_STATIC_COMMANDS.has(step.command)) return false;
   const cfg = options.configuration || jevConfiguration();
   if (!cfg.enabled) return true;
   try {
@@ -125,8 +130,8 @@ export async function gateInspection(step, { type, question }, log = () => {}, d
     }, options);
     const p = response.answers.in_scope.noul;
     decisions.push({ stage: 'gate', command: step.command, probability: p, model: response.model });
-    if (p < 0.18) decisionLog(log, 'avis de portée négatif pour ' + step.command + ' ; examen non exécuté');
-    return p >= 0.18;
+    if (p < 0.18) decisionLog(log, 'pertinence Jev faible pour ' + step.command + ' ; garde-fou statique conservé');
+    return true;
   } catch (error) {
     decisions.push({ stage: 'gate', command: step.command, error: error.message });
     decisionLog(log, 'gate indisponible ; garde-fou déterministe conservé');
