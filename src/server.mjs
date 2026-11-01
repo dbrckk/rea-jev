@@ -1,5 +1,5 @@
 import { createServer } from 'node:http';
-import { createReadStream, createWriteStream, existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, rmSync, renameSync, appendFileSync, chmodSync } from 'node:fs';
+import { createWriteStream, existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, rmSync, appendFileSync, chmodSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { resolve, join, extname, basename } from 'node:path';
 import { randomUUID, createHash, timingSafeEqual } from 'node:crypto';
@@ -64,8 +64,10 @@ function stopProcess(child) {
     if (process.platform !== 'win32' && child.pid) process.kill(-child.pid, 'SIGTERM');
     else child.kill('SIGTERM');
   } catch { try { child.kill('SIGTERM'); } catch {} }
+  let closed = false;
+  child.once('close', () => { closed = true; clearTimeout(timer); });
   const timer = setTimeout(() => {
-    if (!child.killed) {
+    if (!closed) {
       try { if (process.platform !== 'win32' && child.pid) process.kill(-child.pid, 'SIGKILL'); else child.kill('SIGKILL'); } catch {}
     }
   }, 4000);
@@ -222,6 +224,9 @@ export function createApp(options = {}) {
       const method = req.method;
       if (url.pathname === '/' && method === 'GET') {
         return send(res, 200, readFileSync(join(ROOT, 'public', 'index.html'), 'utf8'), 'text/html; charset=utf-8');
+      }
+      if (url.pathname === '/app.css' && method === 'GET') {
+        return send(res, 200, readFileSync(join(ROOT, 'public', 'app.css'), 'utf8'), 'text/css; charset=utf-8');
       }
       if (url.pathname === '/app.js' && method === 'GET') {
         return send(res, 200, readFileSync(join(ROOT, 'public', 'app.js'), 'utf8'), 'application/javascript; charset=utf-8');
