@@ -105,9 +105,11 @@ async function refresh() {
     el('status-dot').className = 'dot ' + (ready ? 'ready' : 'warn');
     el('system').textContent = status.engine === 'free'
       ? ['REA : ' + (status.reaInstalled ? 'opérationnel' : 'indisponible'),
-         'System One : ' + (status.jevAvailability === 'configured-not-verified'
-           ? ((status.jevProvider === 'codiv' ? 'OpenJev' : 'Jev TypeSafe') + ' configuré (appel réel à confirmer)')
-           : 'NON CONNECTÉ — décisions par règles locales'),
+         'System One : ' + (status.jevHealth?.connected
+           ? ((status.jevHealth.provider === 'codiv' ? 'OpenJev' : 'Jev TypeSafe') + ' CONNECTÉ — réponse vérifiée')
+           : (status.jevAvailability === 'configured-not-verified'
+             ? 'configuré mais non fonctionnel (' + (status.jevHealth?.reason || 'non vérifié') + ')'
+             : 'NON CONNECTÉ — décisions par règles locales')),
          'Rapports et preuves séparés par session',
          'Limite : ' + status.maxUploadMB + ' Mio'].join('  ·  ')
       : ['Claude Code : ' + (status.claudeInstalled ? 'présent' : 'absent'),
