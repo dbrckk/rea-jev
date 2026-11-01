@@ -24,7 +24,8 @@ export function createSessionManager(dataDir) {
     const existing = identify(req);
     if (existing) return existing;
     const id = randomBytes(32).toString('hex');
-    const secure = Boolean(req.socket.encrypted || req.headers['x-forwarded-proto'] === 'https');
+    const secure = Boolean(req.socket.encrypted || req.headers['x-forwarded-proto'] === 'https' ||
+      process.env.RENDER === 'true' || String(req.headers.host || '').endsWith('.onrender.com'));
     res.setHeader('Set-Cookie', 'rea_session=' + id + '.' + sign(id) +
       '; Path=/; Max-Age=604800; HttpOnly; SameSite=Strict' + (secure ? '; Secure' : ''));
     return createHash('sha256').update(id).digest('hex');
