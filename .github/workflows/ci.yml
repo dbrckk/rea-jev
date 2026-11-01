@@ -59,3 +59,21 @@ jobs:
             fi
             echo
           done
+
+      - name: End-to-end real REA worker smoke test
+        run: |
+          node --input-type=module - <<'NODE'
+          import { readFileSync, existsSync } from 'node:fs';
+          import { createHash } from 'node:crypto';
+          import { runFreeAnalysis } from './src/free-worker.mjs';
+          const target='/tmp/rea-smoke.apk';
+          const filename='rea-smoke.apk';
+          const sha256=createHash('sha256').update(readFileSync(target)).digest('hex');
+          const reportPath='/tmp/rea-worker-report.md';
+          const observed=[];
+          const result=await runFreeAnalysis({target,filename,sha256,reportPath,question:'Inspecter les composants de cet APK de test',log:s=>observed.push(s)});
+          if (!result.ok || !existsSync(reportPath)) throw new Error('REA worker did not produce a verified report: '+JSON.stringify(result)+' logs '+observed.join('|'));
+          const report=readFileSync(reportPath,'utf8');
+          if (!report.includes('evidence_id') || !report.includes('normalized_result')) throw new Error('REA report lost canonical evidence');
+          console.log('Real worker outcome',JSON.stringify(result),'report bytes',report.length);
+          NODE
