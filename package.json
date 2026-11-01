@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Private web UI for REA × Jev reverse engineering investigations",
   "engines": {
-    "node": ">=24.15.0 <25"
+    "node": ">=24.22.1 <25"
   },
   "scripts": {
     "start": "node src/server.mjs",
