@@ -93,13 +93,24 @@ export async function choosePlan(plan, { type, question }, log = () => {}, decis
   if (!cfg.enabled || plan.length < 2) return plan;
   const criteria = Object.fromEntries(plan.map((step, i) => ['step' + i, step.description]));
   try {
+    const gateQuestions = Object.fromEntries(plan.map((step, index) => ['gate' + index, {
+      type: 'noul',
+      instructions: 'L examen statique ' + step.command + ' est-il pertinent pour le but de l utilisateur ? Répondre sur la pertinence seulement ; le code applique séparément ses règles de sécurité.'
+    }]));
     const response = await requestJev({
       state: { type, user_goal: question.slice(0, 1700), candidate_steps: plan.map(x => x.command) },
       questions: { priority: {
         type: 'choice', instructions: 'Quel examen statique autorisé répond le mieux au but utilisateur ?',
         criteria
-      } }
+      }, ...gateQuestions }
     }, options);
+    if (options.gates instanceof Map) {
+      for (let i = 0; i < plan.length; i++) {
+        const p = response.answers['gate' + i].noul;
+        options.gates.set(plan[i].command, p);
+        decisions.push({stage:'gate',command:plan[i].command,probability:p,model:response.model,batch:true});
+      }
+    }
     const { choice, confidence } = response.answers.priority;
     decisions.push({ stage: 'route', model: response.model, choice, confidence });
     const index = Number(choice.slice(4));
@@ -121,6 +132,11 @@ export async function gateInspection(step, { type, question }, log = () => {}, d
   if (!step || !SAFE_STATIC_COMMANDS.has(step.command)) return false;
   const cfg = options.configuration || jevConfiguration();
   if (!cfg.enabled) return true;
+  if (options.gates instanceof Map && options.gates.has(step.command)) {
+    const p = options.gates.get(step.command);
+    if (p < 0.18) decisionLog(log, 'pertinence faible pour ' + step.command + ' selon Jev ; lecture statique conservée');
+    return true;
+  }
   try {
     const response = await requestJev({
       state: { file_type: type, goal: question.slice(0, 1300), action: step.command,
