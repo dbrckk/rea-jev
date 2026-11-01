@@ -77,3 +77,42 @@ jobs:
           if (!report.includes('evidence_id') || !report.includes('normalized_result')) throw new Error('REA report lost canonical evidence');
           console.log('Real worker outcome',JSON.stringify(result),'report bytes',report.length);
           NODE
+
+      - name: Real REA plus simulated Jev API orchestration integration
+        run: |
+          node --input-type=module - <<'NODE'
+          import { readFileSync } from 'node:fs';
+          import { createHash } from 'node:crypto';
+          import { runFreeAnalysis } from './src/free-worker.mjs';
+          process.env.CODIV_API_KEY = 'ci-only-fake-server-credential-123';
+          let typedCalls=0;
+          globalThis.fetch = async (url, options) => {
+            if (String(url).endsWith('/v1/systemone')) {
+              typedCalls++;
+              const body = JSON.parse(options.body);
+              if (body.model !== 'openjev-0.1') throw new Error('wrong model');
+              const answers = Object.fromEntries(Object.entries(body.questions).map(([id,q]) => [
+                id, q.type === 'choice'
+                  ? {type:'choice',choice:Object.keys(q.criteria)[0],confidence:0.92,probabilities:{}}
+                  : {type:'noul',noul:0.88}
+              ]));
+              return {ok:true,json:async()=>({model:'openjev-0.1',answers,usage:{input_tokens:10}})};
+            }
+            if (String(url).endsWith('/v1/chat/completions'))
+              return {ok:true,json:async()=>({choices:[{message:{content:'Inference de test, pas une preuve.'}}]})};
+            throw new Error('Unexpected outbound request '+url);
+          };
+          const target='/tmp/rea-smoke.apk';
+          const sha256=createHash('sha256').update(readFileSync(target)).digest('hex');
+          const path='/tmp/rea-jev-integrated.md';
+          const result=await runFreeAnalysis({
+            target, filename:'rea-smoke.apk', sha256, reportPath:path,
+            question:'Analyser cet APK et classifier les observations REA'
+          });
+          const report=readFileSync(path,'utf8');
+          if (!result.ok || result.jevVerifiedCalls < 3 || typedCalls < 3 ||
+              !report.includes('Appels System One validés') || !report.includes('OpenJev')) {
+            throw new Error('Full REA+Jev orchestration failed: '+JSON.stringify(result)+' calls '+typedCalls);
+          }
+          console.log('REA + simulated Jev integration:',JSON.stringify({rea:result.successCount,systemOneCalls:typedCalls,verified:result.jevVerifiedCalls}));
+          NODE
