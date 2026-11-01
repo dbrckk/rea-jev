@@ -19,5 +19,3 @@ services:
         value: "30"
       - key: REA_JEV_TIMEOUT_MIN
         value: "10"
-      - key: REA_JEV_TOKEN
-        sync: false
