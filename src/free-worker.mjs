@@ -2,7 +2,7 @@ import { openSync, readSync, closeSync, statSync, existsSync, writeFileSync } fr
 import { extname, resolve, join } from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { choosePlan, explainFindings } from './openjev.mjs';
+import { choosePlan, gateInspection, reviewEvidence, evaluateCompleteness, explainFindings, jevConfiguration } from './openjev.mjs';
 
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const MAX_RESULT = 640 * 1024;
@@ -38,10 +38,12 @@ export function planAnalysis(type, question = '') {
     add('inspect-artifact', 'Inventaire statique de l’archive APK');
   } else if (type === 'pe') {
     add('inspect-pe-imports', 'Fonctions et dépendances Windows importées');
+    add('inspect-binary-layout', 'Structure du binaire PE et sections');
     if (/certif|signat|éditeur|signer|authent/.test(q)) add('inspect-pe-certificates', 'Certificats Authenticode');
     add('inspect-artifact', 'Analyse du conteneur PE');
   } else if (type === 'elf') {
     add('inspect-elf-notes', 'Notes ELF et identifiants de compilation');
+    add('inspect-binary-layout', 'Sections et segments ELF');
     add('inspect-artifact', 'Conteneur ELF et composants reconnus');
   } else if (type === 'sqlite') {
     add('inspect-sqlite-database', 'Tables et structure de la base SQLite');
@@ -52,7 +54,7 @@ export function planAnalysis(type, question = '') {
   } else {
     add('inspect-artifact', 'Détection et inspection du format');
   }
-  return plan.slice(0, 3);
+  return plan.slice(0, 4);
 }
 
 function sanitize(value) {
@@ -68,7 +70,7 @@ function extractFields(value) {
     'status','coverage','limitations','unknowns','warnings','errors','package','summary','signers','mitigations'];
   return Object.entries(value).filter(([key,val]) => keys.includes(key) && val != null);
 }
-export function buildReport({ filename, size, sha256, type, question, outcomes }) {
+export function buildReport({ filename, size, sha256, type, question, outcomes, jevDecisions = [], jevStatus = null }) {
   const lines = [
     '# Rapport d’inspection REA — mode gratuit',
     '',
@@ -109,7 +111,20 @@ export function buildReport({ filename, size, sha256, type, question, outcomes }
     lines.push('Les observations ci-dessus portent uniquement sur le fichier fourni, pas sur son exécution.',
       'Pour retrouver précisément les algorithmes et comportements demandés, une enquête de décompilation approfondie ou un agent génératif supplémentaire peut être nécessaire.', '');
   }
-  lines.push('**Jev TypeSafe n’a pas été appelé :** ce mode ne consomme aucun crédit ni jeton d’IA. Les opérations REA sont choisies par règles reproductibles, pas par une IA autonome.', '',
+  const checked = jevDecisions.filter(d => d.model);
+  lines.push('## Décisions System One', '');
+  if (!jevStatus?.enabled) lines.push('**Jev / OpenJev : non connecté.** Aucune décision IA n’a été exécutée ; le routage REA est effectué par règles locales.', '');
+  else if (!checked.length) lines.push('**Jev configuré mais aucune décision API confirmée.** Ne pas confondre configuration et fonctionnement validé.', '');
+  else {
+    lines.push('**Moteur :** ' + (jevStatus.provider === 'codiv' ? 'OpenJev (Codiv, gratuit sous quota)' : 'Jev TypeSafe (payant)'),
+      '**Appels System One validés :** ' + checked.length, '');
+    for (const decision of jevDecisions) {
+      if (decision.error) lines.push('- ' + decision.stage + ' : appel non vérifié (' + decision.error + ')');
+      else lines.push('- ' + decision.stage + ' : ' + JSON.stringify(decision));
+    }
+    lines.push('', 'Les probabilités Jev sont des évaluations, pas des preuves de comportement du binaire.', '');
+  }
+  lines.push(
     '**Sécurité :** le fichier cible n’a pas été exécuté par ce flux ; les bibliothèques d’analyse ont néanmoins lu des données non fiables.', '');
   return lines.join('\n');
 }
@@ -157,21 +172,34 @@ function execInspection(command, target, { timeoutMs, onProcess, signal }) {
 }
 export async function runFreeAnalysis({ target, filename, question, sha256, reportPath, log = () => {}, signal, onProcess }) {
   const type = detectType(target, filename);
-  const plan = await choosePlan(planAnalysis(type, question), { type, question }, log);
+  const jevStatus = jevConfiguration();
+  const jevDecisions = [];
+  const plan = await choosePlan(planAnalysis(type, question), { type, question }, log, jevDecisions);
   log('Mode gratuit REA, sans API payante. Format détecté : ' + type);
   log('Plan REA : ' + plan.map(x => x.command).join(', '));
   const outcomes = [];
   for (const step of plan) {
     if (signal?.aborted) throw new Error('Analyse annulée');
+    const permitted = await gateInspection(step, { type, question }, log, jevDecisions);
+    if (signal?.aborted) throw new Error('Analyse annulée');
+    if (!permitted) {
+      outcomes.push({ ...step, ok: false, error: 'Vérification de portée Jev : analyse écartée' });
+      continue;
+    }
     log('Lancement : rea ' + step.command);
     const result = await execInspection(step.command, target, { timeoutMs: 65000, signal, onProcess });
-    outcomes.push({ ...step, ...result });
+    const outcome = { ...step, ...result };
+    outcomes.push(outcome);
     log(result.ok ? 'Preuves enregistrées : ' + step.description : 'Étape non vérifiée : ' + result.error);
+    if (result.ok) await reviewEvidence(outcome, { question }, log, jevDecisions);
   }
-  const report = buildReport({filename,sha256,size:statSync(target).size,type,question,outcomes});
+  if (signal?.aborted) throw new Error('Analyse annulée');
+  await evaluateCompleteness({ question, outcomes }, log, jevDecisions);
+  const report = buildReport({filename,sha256,size:statSync(target).size,type,question,outcomes, jevDecisions, jevStatus});
   const explanation = await explainFindings({question, type, outcomes}, log);
   const complete = explanation ? report + '\n\n## Interprétation OpenJev (inférence IA, non preuve)\n\n' + explanation + '\n\nCe texte a été produit par DiffusionGemma avec le quota gratuit Codiv ; seule la sortie brute REA ci-dessus constitue une observation.\n' : report;
   writeFileSync(reportPath, complete, { mode:0o600 });
   const successes = outcomes.filter(x => x.ok).length;
-  return { ok: successes > 0, successCount: successes, plannedCount: outcomes.length };
+  return { ok: successes > 0, successCount: successes, plannedCount: outcomes.length,
+    jevVerifiedCalls: jevDecisions.filter(d => d.model).length, jevConfigured: jevStatus.enabled };
 }
