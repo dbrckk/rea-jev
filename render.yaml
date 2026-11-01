@@ -10,7 +10,7 @@ services:
     healthCheckPath: /
     envVars:
       - key: NODE_VERSION
-        value: 24.15.0
+        value: 24.22.1
       - key: REA_JEV_ENGINE
         value: free
       - key: REA_JEV_HOST
