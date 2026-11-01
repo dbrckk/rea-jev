@@ -34,6 +34,10 @@ test('Zero-login interface, private sessions, limits, REA reports, deletion and 
     const cookie = await session();
     const otherCookie = await session();
     assert.notEqual(cookie, otherCookie);
+    const secureSession = await fetch(base + '/api/session', {
+      headers: { 'X-Forwarded-Proto': 'https' }
+    });
+    assert.match(secureSession.headers.get('set-cookie'), /; Secure/);
     const req = requestWith(cookie);
     const other = requestWith(otherCookie);
     assert.equal((await req('/api/jobs', { method:'POST', headers:{ Origin:'https://evil.example' },body:'{}' })).status, 403);
@@ -42,7 +46,8 @@ test('Zero-login interface, private sessions, limits, REA reports, deletion and 
       assert.equal(response.status, 200);
       assert.ok((await response.text()).length > 100);
     }
-    assert.doesNotMatch(await (await req('/')).text(), /Jeton privé du serveur|id="token"/);
+    const page = await (await req('/')).text();
+    assert.doesNotMatch(page, /Jeton privé du serveur|id="token"|id="authorized"/);
     const status = await req('/api/status');
     assert.equal(status.status, 200);
     assert.equal((await status.json()).engine, 'free');
