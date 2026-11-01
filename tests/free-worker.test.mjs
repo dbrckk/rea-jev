@@ -23,7 +23,7 @@ test('detects actual binary signatures rather than trusting file names', () => {
 });
 test('routes static REA work according to format and question',()=>{
   assert.deepEqual(planAnalysis('apk','permissions').map(x=>x.command), ['inspect-artifact']);
-  assert.deepEqual(planAnalysis('pe','certificat Authenticode').map(x=>x.command), ['inspect-pe-imports','inspect-pe-certificates','inspect-artifact']);
+  assert.deepEqual(planAnalysis('pe','certificat Authenticode').map(x=>x.command), ['inspect-pe-imports','inspect-binary-layout','inspect-pe-certificates','inspect-artifact']);
   assert.equal(planAnalysis('sqlite','tables')[0].command,'inspect-sqlite-database');
 });
 test('report attributes real REA evidence, marks missing observations and excludes fake Jev',()=>{
@@ -32,5 +32,5 @@ test('report attributes real REA evidence, marks missing observations and exclud
       {command:'inspect-artifact',description:'Conteneur',ok:false,error:'unsupported format'}]});
   assert.match(report,/ev_42/);
   assert.match(report,/Non vérifié/);
-  assert.match(report,/Jev TypeSafe n’a pas été appelé/);
+  assert.match(report,/Jev / OpenJev : non connecté/);
 });
