@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { projectEvidence } from '../src/evidence.mjs';
 import assert from 'node:assert/strict';
 import {
   jevConfiguration, requestJev, choosePlan, gateInspection, reviewEvidence, evaluateCompleteness, probeJev
@@ -97,4 +98,40 @@ test('readiness verifies genuine System One request; never claims success on una
   const absent = await probeJev({configuration:{enabled:false,availability:'server-key-missing'}});
   assert.equal(absent.checked,false);
   assert.equal(absent.connected,false);
+});
+
+test('Jev reads actual nested REA normalized evidence, never raw local paths or secrets', async () => {
+  const canonical = {
+    evidence_id:'ev_main',
+    subject:{ local_path:'/home/private/app.apk', format:'apk' },
+    raw_result:{ api_key:'private-do-not-send' },
+    normalized_result:{
+      subject:{root_format:'apk'},
+      substeps:[{operation:'inventory_artifact',status:'completed',evidence:{
+        evidence_id:'ev_child',
+        normalized_result:{ manifest:{node_count:3,root_format:'apk'},
+          nodes:[{format:'dex',local_path:'/private/classes.dex',content_state:'embedded'}] },
+        limitations:[]
+      }}]
+    },
+    limitations:[{message:'Only static evidence available'}]
+  };
+  const projected = projectEvidence(canonical);
+  const serialized = JSON.stringify(projected);
+  assert.match(serialized,/inventory_artifact|node_count/);
+  assert.match(serialized,/ev_child/);
+  assert.doesNotMatch(serialized,/\/home\/private|\/private\/classes|private-do-not-send/);
+  assert.ok(serialized.length < 5500);
+  const calls=[];
+  const fetcher=async (url, options)=>{
+    const body=JSON.parse(options.body);
+    calls.push(body);
+    return fakeJev([])(url,options);
+  };
+  const decisions=[];
+  await reviewEvidence({command:'inspect-artifact',ok:true,data:canonical},
+    {question:'APK inventory'},()=>{},decisions,{configuration:cfg,fetcher});
+  assert.equal(decisions[0].stage,'evidence');
+  assert.match(JSON.stringify(calls[0]),/node_count/);
+  assert.doesNotMatch(JSON.stringify(calls[0]),/private-do-not-send|\/home\/private/);
 });
