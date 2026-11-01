@@ -22,7 +22,7 @@ test('detects actual binary signatures rather than trusting file names', () => {
   } finally {rmSync(dir,{recursive:true,force:true});}
 });
 test('routes static REA work according to format and question',()=>{
-  assert.deepEqual(planAnalysis('apk','permissions').map(x=>x.command), ['inspect-artifact']);
+  assert.deepEqual(planAnalysis('apk','permissions').map(x=>x.command), ['inspect-artifact','identify-flutter-build']);
   assert.deepEqual(planAnalysis('pe','certificat Authenticode').map(x=>x.command), ['inspect-pe-imports','inspect-binary-layout','inspect-pe-certificates','inspect-artifact']);
   assert.equal(planAnalysis('sqlite','tables')[0].command,'inspect-sqlite-database');
 });
