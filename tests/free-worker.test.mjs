@@ -10,7 +10,7 @@ test('detects actual binary signatures rather than trusting file names', () => {
   try{
     for (const [name,body,type] of [
       ['foo.exe',Buffer.from([0x4d,0x5a,0x00,0x00]),'pe'],
-      ['foo.apk',Buffer.from('PK\03\04'),'apk'],
+      ['foo.apk',Buffer.from([0x50,0x4b,0x03,0x04]),'apk'],
       ['foo.apk',Buffer.from('not-a-zip'),'unknown'],
       ['foo.elf',Buffer.from([0x7f,0x45,0x4c,0x46]),'elf'],
       ['model.gguf',Buffer.from('GGUF'),'model']
