@@ -28,14 +28,12 @@
           <small id="file-info">APK, EXE, bibliothèques, archives ou autre artefact</small>
           <input id="file" type="file">
         </label>
-        <label class="field-label" for="question">Que doit chercher l'agent ?</label>
+        <label class="field-label" for="question">Que souhaitez-vous analyser ?</label>
         <textarea id="question" rows="4" maxlength="2000" placeholder="Ex. Comprendre l'architecture, les composants, les appels réseau déclarés et la logique de connexion. Séparer preuves et hypothèses."></textarea>
         <label class="check"><input type="checkbox" id="authorized"><span>Je confirme être autorisé à analyser ce fichier.</span></label>
-        <button id="start" class="primary" type="button">Lancer l'investigation <span>↗</span></button>
+        <button id="start" class="primary" type="button">Lancer l’analyse <span>↗</span></button>
         <p id="form-message" class="message" aria-live="polite"></p>
-        <div class="divider"></div>
-        <div class="auth-row"><label for="token">Jeton privé du serveur</label><div class="token-controls"><input id="token" type="password" placeholder="Optionnel en localhost" autocomplete="off"><button id="save-token" type="button">Appliquer</button></div></div>
-        <p class="hint">Jeton conservé dans ce navigateur jusqu’à suppression de ses données. Le navigateur ne requiert aucune installation. Le serveur utilise REA et éventuellement OpenJev gratuit.</p>
+        <p class="hint">Aucun compte, jeton ni logiciel à installer. Une session privée est créée automatiquement dans ce navigateur. Vos fichiers et rapports ne sont pas accessibles aux autres sessions. Limites d'utilisation pour protéger l'hébergement gratuit.</p>
       </section>
       <section class="panel jobs-panel" aria-labelledby="jobs-title">
         <div class="section-head"><div><span class="eyebrow">02 / SUIVI</span><h2 id="jobs-title">Analyses</h2></div><button type="button" id="refresh" class="subtle">Actualiser</button></div>
@@ -51,6 +49,6 @@
       <div id="report" class="report"></div>
     </section>
   </main>
-  <footer>REA × Jev · Analyses locales par défaut · Résultats dépendants des moteurs disponibles et de l'agent configuré</footer>
+  <footer>REA × Jev · Analyses sur serveur gratuit · Résultats et capacités selon les moteurs disponibles</footer>
 </body>
 </html>
