@@ -1,5 +1,5 @@
 const el = id => document.getElementById(id);
-let token = sessionStorage.getItem('rea-token') || '';
+let token = localStorage.getItem('rea-token') || '';
 let selectedJob = null;
 let jobs = [];
 el('token').value = token;
@@ -102,7 +102,8 @@ async function refresh() {
     el('status-dot').className = 'dot ' + (ready ? 'ready' : 'warn');
     el('system').textContent = status.engine === 'free'
       ? ['REA gratuit : ' + (status.reaInstalled ? 'installé' : 'absent'),
-         'Analyse statique sans crédit IA',
+         'OpenJev : ' + (status.openJevEnabled ? 'activé (quota gratuit)' : 'non configuré'),
+         'Sans clé : analyse REA locale uniquement',
          'Fichiers conservés temporairement sur le serveur',
          'Limite : ' + status.maxUploadMB + ' Mio'].join('  ·  ')
       : ['Claude Code : ' + (status.claudeInstalled ? 'présent' : 'absent'),
@@ -116,8 +117,8 @@ async function refresh() {
 }
 el('save-token').addEventListener('click', () => {
   token = el('token').value.trim();
-  if (token) sessionStorage.setItem('rea-token', token);
-  else sessionStorage.removeItem('rea-token');
+  if (token) localStorage.setItem('rea-token', token);
+  else localStorage.removeItem('rea-token');
   refresh();
 });
 el('file').addEventListener('change', () => {
