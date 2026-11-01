@@ -218,3 +218,21 @@ export async function explainFindings({ question, type, outcomes }, log = () => 
     return '';
   } finally { clearTimeout(timer); }
 }
+
+/** Validate an actual Jev decision round-trip. Cached by caller to avoid spending quota. */
+export async function probeJev(options = {}) {
+  const cfg = options.configuration || jevConfiguration();
+  if (!cfg.enabled) return { connected:false, provider:null, model:null,
+    reason:cfg.availability, checked:false };
+  try {
+    const response = await requestJev({
+      state: { test: '2 is larger than 1', subject: 'readiness verification' },
+      questions: { ready: { type:'noul', instructions:'Is the number 2 greater than the number 1?' } }
+    }, { ...options, timeoutMs:5000 });
+    return { connected:true, provider:cfg.provider, model:response.model,
+      probability:response.answers.ready.noul, checked:true };
+  } catch(error) {
+    return { connected:false, provider:cfg.provider, model:cfg.model,
+      reason:error.message, checked:true };
+  }
+}
