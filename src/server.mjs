@@ -8,7 +8,7 @@ import { once } from 'node:events';
 import { finished } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
 import { runFreeAnalysis } from './free-worker.mjs';
-import { jevConfiguration } from './openjev.mjs';
+import { jevConfiguration, probeJev } from './openjev.mjs';
 import { createSessionManager } from './session.mjs';
 
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
@@ -88,6 +88,18 @@ export function createApp(options = {}) {
   mkdirSync(join(dataDir, 'uploads'), { recursive: true, mode: 0o700 });
   mkdirSync(join(dataDir, 'jobs'), { recursive: true, mode: 0o700 });
   const sessions = createSessionManager(dataDir);
+  let jevProbe = { connected: false, checked: false, reason: 'server-key-missing' };
+  let jevProbeAt = 0;
+  let pendingJevProbe = null;
+  async function checkJev() {
+    const cfg = jevConfiguration();
+    if (!cfg.enabled) return { connected:false, checked:false, reason:cfg.availability };
+    if (Date.now() - jevProbeAt < 300000) return jevProbe;
+    if (!pendingJevProbe) pendingJevProbe = probeJev().then(result => {
+      jevProbe = result; jevProbeAt = Date.now(); return result;
+    }).finally(() => { pendingJevProbe = null; });
+    return pendingJevProbe;
+  }
   const MAX_STORED_BYTES = 120 * 1048576;
   const MAX_UPLOADS_PER_SESSION = 3;
   const MAX_UPLOADS_GLOBAL = 12;
@@ -308,7 +320,8 @@ export function createApp(options = {}) {
       }
       if (url.pathname === '/api/status' && method === 'GET') {
         const jev = jevConfiguration();
-        return send(res, 200, { engine, openJevEnabled: jev.enabled, jevProvider: jev.provider, jevModel: jev.model, jevAvailability: jev.availability, reaInstalled: existsSync(join(ROOT, 'node_modules', '.bin', 'rea')), claudeInstalled: commandAvailable('claude'), pluginInstalled: existsSync(join(pluginDir, '.claude-plugin', 'plugin.json')), jevConfigured: Boolean(process.env.TYPESAFE_API_KEY || process.env.OPENROUTER_API_KEY || process.env.CLAUDE_PLUGIN_OPTION_TYPESAFE_API_KEY), jadxInstalled: Boolean(process.env.REA_JADX_MCP_JAR ? existsSync(process.env.REA_JADX_MCP_JAR) : existsSync(join(homedir(), '.local', 'share', 'rea', 'android', 'jadx-headless-mcp-0.7.1-all.jar'))), javaInstalled: commandAvailable('java') && commandAvailable('javac'), ghidraConfigured: Boolean(process.env.GHIDRA_INSTALL_DIR && existsSync(process.env.GHIDRA_INSTALL_DIR)), running: active !== null, maxUploadMB: maxBytes / 1048576 });
+        const jevHealth = await checkJev();
+        return send(res, 200, { engine, jevHealth, openJevEnabled: jev.enabled, jevProvider: jev.provider, jevModel: jev.model, jevAvailability: jev.availability, reaInstalled: existsSync(join(ROOT, 'node_modules', '.bin', 'rea')), claudeInstalled: commandAvailable('claude'), pluginInstalled: existsSync(join(pluginDir, '.claude-plugin', 'plugin.json')), jevConfigured: Boolean(process.env.TYPESAFE_API_KEY || process.env.OPENROUTER_API_KEY || process.env.CLAUDE_PLUGIN_OPTION_TYPESAFE_API_KEY), jadxInstalled: Boolean(process.env.REA_JADX_MCP_JAR ? existsSync(process.env.REA_JADX_MCP_JAR) : existsSync(join(homedir(), '.local', 'share', 'rea', 'android', 'jadx-headless-mcp-0.7.1-all.jar'))), javaInstalled: commandAvailable('java') && commandAvailable('javac'), ghidraConfigured: Boolean(process.env.GHIDRA_INSTALL_DIR && existsSync(process.env.GHIDRA_INSTALL_DIR)), running: active !== null, maxUploadMB: maxBytes / 1048576 });
       }
       if (url.pathname === '/api/uploads' && method === 'POST') {
         cleanupExpired();
