@@ -35,7 +35,7 @@ export function planAnalysis(type, question = '') {
   const plan = [];
   function add(command, description) { if (!plan.some(item => item.command === command)) plan.push({ command, description }); }
   if (type === 'apk') {
-    add('inspect-apk-signature', 'Signatures et empreintes APK');
+    add('inspect-signature', 'Signatures et empreintes APK');
     add('inspect-artifact', 'Inventaire statique de l’archive');
   } else if (type === 'pe') {
     add('inspect-pe-imports', 'Fonctions et dépendances Windows importées');
