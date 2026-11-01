@@ -8,6 +8,7 @@ import { once } from 'node:events';
 import { finished } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
 import { runFreeAnalysis } from './free-worker.mjs';
+import { openJevEnabled } from './openjev.mjs';
 
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const DEFAULT_DATA = join(homedir(), '.rea-jev-gui');
@@ -269,7 +270,7 @@ export function createApp(options = {}) {
         if (!valid) return send(res, 403, { error: 'Origine refusée' });
       }
       if (url.pathname === '/api/status' && method === 'GET') {
-        return send(res, 200, { engine, reaInstalled: existsSync(join(ROOT, 'node_modules', '.bin', 'rea')), claudeInstalled: commandAvailable('claude'), pluginInstalled: existsSync(join(pluginDir, '.claude-plugin', 'plugin.json')), jevConfigured: Boolean(process.env.TYPESAFE_API_KEY || process.env.OPENROUTER_API_KEY || process.env.CLAUDE_PLUGIN_OPTION_TYPESAFE_API_KEY), jadxInstalled: Boolean(process.env.REA_JADX_MCP_JAR ? existsSync(process.env.REA_JADX_MCP_JAR) : existsSync(join(homedir(), '.local', 'share', 'rea', 'android', 'jadx-headless-mcp-0.7.1-all.jar'))), javaInstalled: commandAvailable('java') && commandAvailable('javac'), ghidraConfigured: Boolean(process.env.GHIDRA_INSTALL_DIR && existsSync(process.env.GHIDRA_INSTALL_DIR)), running: active !== null, maxUploadMB: maxBytes / 1048576 });
+        return send(res, 200, { engine, openJevEnabled: openJevEnabled(), reaInstalled: existsSync(join(ROOT, 'node_modules', '.bin', 'rea')), claudeInstalled: commandAvailable('claude'), pluginInstalled: existsSync(join(pluginDir, '.claude-plugin', 'plugin.json')), jevConfigured: Boolean(process.env.TYPESAFE_API_KEY || process.env.OPENROUTER_API_KEY || process.env.CLAUDE_PLUGIN_OPTION_TYPESAFE_API_KEY), jadxInstalled: Boolean(process.env.REA_JADX_MCP_JAR ? existsSync(process.env.REA_JADX_MCP_JAR) : existsSync(join(homedir(), '.local', 'share', 'rea', 'android', 'jadx-headless-mcp-0.7.1-all.jar'))), javaInstalled: commandAvailable('java') && commandAvailable('javac'), ghidraConfigured: Boolean(process.env.GHIDRA_INSTALL_DIR && existsSync(process.env.GHIDRA_INSTALL_DIR)), running: active !== null, maxUploadMB: maxBytes / 1048576 });
       }
       if (url.pathname === '/api/uploads' && method === 'POST') {
         if (req.headers['content-type'] !== 'application/octet-stream') return send(res, 415, { error: 'Envoyer un fichier brut' });
