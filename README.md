@@ -37,7 +37,7 @@ REA_JEV_HOST=0.0.0.0 npm start
 
 Le moteur est `REA_JEV_ENGINE=free` par défaut. Il ne requiert ni `TYPESAFE_API_KEY`, ni `OPENROUTER_API_KEY`, ni `ANTHROPIC_API_KEY`. Le fichier est stocké par défaut dans `~/.rea-jev-gui` ; ajuster `REA_JEV_DATA_DIR`.
 
-Les extensions et en-têtes connus déclenchent notamment `inspect-apk-signature`, `inspect-pe-imports`, `inspect-elf-notes`, `inspect-sqlite-database`, `inspect-model-artifact` ou `inspect-artifact`. Chaque résultat provient réellement de la CLI ; lorsqu'une commande REA ne prend pas en charge un fichier, cela apparaît explicitement comme **non vérifié**.
+Les extensions et en-têtes connus déclenchent notamment `inspect-signature`, `inspect-pe-imports`, `inspect-elf-notes`, `inspect-sqlite-database`, `inspect-model-artifact` ou `inspect-artifact`. Chaque résultat provient réellement de la CLI ; lorsqu'une commande REA ne prend pas en charge un fichier, cela apparaît explicitement comme **non vérifié**.
 
 **Précautions :** aucun fichier fourni n'est volontairement exécuté ; les analyseurs lisent néanmoins un contenu non fiable. Pour Ghidra/JADX (décompilation profonde), un serveur mieux doté et isolé est nécessaire. Le plan Render gratuit ne peut pas promettre une investigation approfondie de toute application. L'authentification par jeton n'est pas une sandbox et les ressources CPU/stockage sont limitées.
 
