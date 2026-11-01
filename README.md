@@ -6,9 +6,9 @@ Interface web pour importer un APK, EXE, DLL, archive, etc., saisir une consigne
 
 - **REA 6.5.0 (MIT)** exécute des analyses statiques réelles via sa CLI.
 - Le routage des commandes est **déterministe** par défaut (type de fichier et demande), sans appel payant.
-- **OpenJev (Codiv)** est facultatif : si le serveur dispose d'une clé gratuite `CODIV_API_KEY`, il priorise les analyses et DiffusionGemma fournit une interprétation séparée des preuves. Codiv annonce 100 M tokens gratuits pour les décisions et 10 M pour la génération. Ce modèle n'est **pas** le Jev propriétaire de TypeSafe.
+- **Jev System One fonctionne côté serveur uniquement si son fournisseur est réellement connecté.** Sur Codiv, `CODIV_API_KEY` (secret configuré une seule fois côté Render) active OpenJev, compatible Jev : quatre points de contrôle réels (`route`, `gate`, `evidence`, `completeness`). La page teste une vraie décision API et annonce **connecté** seulement si elle reçoit une réponse conforme. Codiv annonce 100 M tokens d'entrée gratuits pour les décisions et 10 M pour la génération, avec quotas susceptibles d'évoluer. Le service demande une inscription gratuite et une clé serveur ; **aucun jeton n'est demandé aux visiteurs**. OpenJev n'est pas le Jev propriétaire de TypeSafe.
 - Le rapport Markdown rassemble résultats, empreinte SHA-256, preuves, erreurs et limites.
-- **Attention : le vrai Jev de TypeSafe n'est pas inclus dans le mode gratuit.** Il est propriétaire et facturé par API. Il sert à classifier et choisir, **pas** à créer du texte ou conduire une enquête autonome.
+- **Jev TypeSafe** n'est activable qu'avec `REA_JEV_PROVIDER=typesafe`, `TYPESAFE_API_KEY` et `REA_JEV_ALLOW_PAID=1` définis côté serveur. Ce mode a un coût : il est **désactivé par défaut**, afin d'éviter toute facturation. Jev décide et classe, il ne rédige pas de rapports ni ne remplace un agent de décompilation.
 - L'ancien mode agent Claude + plugin REA–Jev reste disponible en option pour une installation privée, mais **n'est pas utilisé par défaut**.
 
 ## Utilisation depuis Android
@@ -21,7 +21,7 @@ Les tâches peuvent être annulées et le rapport est téléchargeable. **Les fi
 
 Le dépôt comprend un `render.yaml` pour le déploiement Blueprint. Sur Render : `New > Blueprint`, sélectionner `dbrckk/rea-jev`, plan `Free`, valider le service. Le plan Free s'endort après 15 minutes d'inactivité, utilise 512 Mo de RAM, et a des quotas mensuels. Les très grands fichiers et certaines inspections dépassent les limites. Aucune facturation n'est nécessaire tant qu'aucune offre payante n'est activée. Vérifier les modalités actuelles sur https://render.com/docs/free.
 
-Le service public existant est [REA × Jev Studio](https://rea-jev-studio.onrender.com), sur Render Free. **Aucun secret d'accès client n'est nécessaire.** Facultativement, l'exploitant du serveur peut ajouter `CODIV_API_KEY` en tant que secret Render pour OpenJev. Sans cette clé, REA fonctionne toujours en mode inspection statique par règles. Attention : un service anonyme public reste exposé au spam, aux limites de débit et aux attaques contre les parseurs de fichiers ; les quotas applicatifs ne remplacent pas un reverse proxy/WAF ni un conteneur d'analyse isolé.
+Le service public existant est [REA × Jev Studio](https://rea-jev-studio.onrender.com), sur Render Free. **Aucun secret d'accès client n'est nécessaire.** Facultativement, l'exploitant du serveur peut ajouter `CODIV_API_KEY` en tant que secret Render pour OpenJev. Sans cette clé, REA fonctionne toujours en mode inspection statique par règles ; **le site indique explicitement que Jev est non connecté**. Le plan Render gratuit ne peut pas héberger localement le modèle OpenJev 26B, qui demande une grosse carte NVIDIA ou du matériel équivalent. Attention : un service anonyme public reste exposé au spam, aux limites de débit et aux attaques contre les parseurs de fichiers ; les quotas applicatifs ne remplacent pas un reverse proxy/WAF ni un conteneur d'analyse isolé.
 
 ## Exécution sur un serveur existant (optionnel, aucune installation sur Android)
 
@@ -49,3 +49,9 @@ npm test
 ```
 
 Références : [REA](https://github.com/morluto/rea), [plugin REA–Jev](https://github.com/juan-viox/rea-jev), [prix Jev](https://typesafe.ai/), [Render Free](https://render.com/docs/free).
+
+## Vérification Jev
+
+Le dashboard interroge automatiquement le fournisseur côté serveur (une requête System One courte, mise en cache cinq minutes). Il distingue : `NON CONNECTÉ`, `configuré mais non fonctionnel`, ou `CONNECTÉ — réponse vérifiée`. Les décisions sont enregistrées dans le rapport, avec probabilités et incertitudes ; aucune estimation Jev n'est traitée comme une preuve. Les requêtes Jev ne servent jamais à exécuter un fichier, lancer une commande arbitraire ou publier des données. Si une API externe est activée, de courts extraits d'observations sont transmis au fournisseur ; pas les octets du binaire.
+
+**État de la version déployée sans clé Codiv :** REA fonctionne, Jev/OpenJev **ne fonctionne pas encore** et ne peut être présenté comme actif. La création/connexion au compte tiers et la configuration de la clé serveur nécessitent l'autorisation et les identifiants de l'exploitant, pas un champ de jeton pour les visiteurs.
