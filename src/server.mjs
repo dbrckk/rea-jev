@@ -2,13 +2,14 @@ import { createServer } from 'node:http';
 import { createWriteStream, existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, rmSync, appendFileSync, chmodSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { resolve, join, extname, basename } from 'node:path';
-import { randomUUID, createHash, timingSafeEqual } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
 import { finished } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
 import { runFreeAnalysis } from './free-worker.mjs';
 import { openJevEnabled } from './openjev.mjs';
+import { createSessionManager } from './session.mjs';
 
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const DEFAULT_DATA = join(homedir(), '.rea-jev-gui');
@@ -79,7 +80,6 @@ function stopProcess(child) {
 export function createApp(options = {}) {
   const dataDir = resolve(options.dataDir || process.env.REA_JEV_DATA_DIR || DEFAULT_DATA);
   const pluginDir = resolve(options.pluginDir || process.env.REA_JEV_PLUGIN_DIR || join(ROOT, 'vendor', 'rea-jev'));
-  const token = options.token ?? process.env.REA_JEV_TOKEN ?? '';
   const engine = options.engine || process.env.REA_JEV_ENGINE || 'free';
   const maxBytes = Math.floor(Number(options.maxUploadMB || process.env.REA_JEV_MAX_UPLOAD_MB || 256) * 1024 * 1024);
   const timeoutMs = Math.floor(Number(process.env.REA_JEV_TIMEOUT_MIN || 30) * 60000);
@@ -87,11 +87,18 @@ export function createApp(options = {}) {
   if (!Number.isSafeInteger(maxBytes) || maxBytes < 1024 || !Number.isFinite(timeoutMs) || timeoutMs < 1000) throw new Error('Configuration des limites invalide');
   mkdirSync(join(dataDir, 'uploads'), { recursive: true, mode: 0o700 });
   mkdirSync(join(dataDir, 'jobs'), { recursive: true, mode: 0o700 });
+  const sessions = createSessionManager(dataDir);
+  const MAX_STORED_BYTES = 120 * 1048576;
+  const MAX_UPLOADS_PER_SESSION = 3;
+  const MAX_UPLOADS_GLOBAL = 12;
+  const MAX_QUEUED_GLOBAL = 8;
   const jobs = new Map();
   const uploads = new Map();
   const queue = [];
   let active = null;
   let child = null;
+  let activeUploads = 0;
+  const activeUploadOwners = new Set();
 
   for (const name of readdirSync(join(dataDir, 'uploads'))) {
     if (!name.endsWith('.json')) continue;
@@ -114,6 +121,35 @@ export function createApp(options = {}) {
       jobs.set(id, job);
     } catch {}
   }
+  function removeJobAndUpload(job) {
+    rmSync(join(dataDir, 'jobs', job.id), { recursive: true, force: true });
+    jobs.delete(job.id);
+    if (![...jobs.values()].some(other => other.uploadId === job.uploadId)) {
+      const upload = uploads.get(job.uploadId);
+      if (upload) {
+        rmSync(join(dataDir, 'uploads', upload.storedName), { force: true });
+        rmSync(join(dataDir, 'uploads', upload.id + '.json'), { force: true });
+        uploads.delete(upload.id);
+      }
+    }
+  }
+  function cleanupExpired() {
+    const now = Date.now();
+    for (const job of [...jobs.values()]) {
+      if (['queued', 'running'].includes(job.status)) continue;
+      if (now - Date.parse(job.endedAt || job.createdAt) > 12 * 3600000) removeJobAndUpload(job);
+    }
+    for (const upload of [...uploads.values()]) {
+      if ([...jobs.values()].some(job => job.uploadId === upload.id)) continue;
+      if (now - Date.parse(upload.createdAt) > 20 * 60000) {
+        rmSync(join(dataDir, 'uploads', upload.storedName), { force: true });
+        rmSync(join(dataDir, 'uploads', upload.id + '.json'), { force: true });
+        uploads.delete(upload.id);
+      }
+    }
+  }
+  const janitor = setInterval(cleanupExpired, 15 * 60000);
+  janitor.unref();
   function persist(job) {
     const { lines, report, abort, ...meta } = job;
     writeFileSync(join(dataDir, 'jobs', job.id, 'job.json'), JSON.stringify(meta, null, 2));
@@ -259,11 +295,12 @@ export function createApp(options = {}) {
         return send(res, 200, readFileSync(join(ROOT, 'public', 'app.js'), 'utf8'), 'application/javascript; charset=utf-8');
       }
       if (!url.pathname.startsWith('/api/')) return send(res, 404, { error: 'Introuvable' });
-      if (token) {
-        const supplied = (req.headers.authorization || '').replace(/^Bearer /i, '');
-        const a = Buffer.from(supplied), b = Buffer.from(token);
-        if (a.length !== b.length || !timingSafeEqual(a, b)) return send(res, 401, { error: 'Jeton invalide' });
+      if (url.pathname === '/api/session' && method === 'GET') {
+        sessions.bootstrap(req, res);
+        return send(res, 200, { ready: true, mode: 'browser-session' });
       }
+      const owner = sessions.identify(req);
+      if (!owner) return send(res, 401, { error: 'Session expirée. Actualiser la page.' });
       if (method !== 'GET' && req.headers.origin) {
         let valid = false;
         try { valid = new URL(req.headers.origin).host === req.headers.host; } catch {}
@@ -273,9 +310,19 @@ export function createApp(options = {}) {
         return send(res, 200, { engine, openJevEnabled: openJevEnabled(), reaInstalled: existsSync(join(ROOT, 'node_modules', '.bin', 'rea')), claudeInstalled: commandAvailable('claude'), pluginInstalled: existsSync(join(pluginDir, '.claude-plugin', 'plugin.json')), jevConfigured: Boolean(process.env.TYPESAFE_API_KEY || process.env.OPENROUTER_API_KEY || process.env.CLAUDE_PLUGIN_OPTION_TYPESAFE_API_KEY), jadxInstalled: Boolean(process.env.REA_JADX_MCP_JAR ? existsSync(process.env.REA_JADX_MCP_JAR) : existsSync(join(homedir(), '.local', 'share', 'rea', 'android', 'jadx-headless-mcp-0.7.1-all.jar'))), javaInstalled: commandAvailable('java') && commandAvailable('javac'), ghidraConfigured: Boolean(process.env.GHIDRA_INSTALL_DIR && existsSync(process.env.GHIDRA_INSTALL_DIR)), running: active !== null, maxUploadMB: maxBytes / 1048576 });
       }
       if (url.pathname === '/api/uploads' && method === 'POST') {
+        cleanupExpired();
         if (req.headers['content-type'] !== 'application/octet-stream') return send(res, 415, { error: 'Envoyer un fichier brut' });
         const length = Number(req.headers['content-length']);
         if (Number.isFinite(length) && length > maxBytes) return send(res, 413, { error: 'Fichier trop volumineux' });
+        if (activeUploads >= 2 || activeUploadOwners.has(owner)) return send(res, 429, { error: 'Transferts occupés. Réessayer.' });
+        const stored = [...uploads.values()];
+        if (stored.length >= MAX_UPLOADS_GLOBAL ||
+          stored.reduce((sum, item) => sum + item.size, 0) + (Number.isFinite(length) ? length : maxBytes) > MAX_STORED_BYTES)
+          return send(res, 429, { error: 'Capacité gratuite momentanément atteinte. Supprimer une ancienne analyse.' });
+        if (stored.filter(upload => upload.owner === owner).length >= MAX_UPLOADS_PER_SESSION)
+          return send(res, 429, { error: 'Limite de trois fichiers par navigateur. Supprimer une ancienne analyse.' });
+        activeUploads++;
+        activeUploadOwners.add(owner);
         const filename = safeName(req.headers['x-filename']);
         const id = randomUUID();
         const suffix = extname(filename).slice(0, 12).replace(/[^a-z0-9.]/gi, '') || '.bin';
@@ -297,24 +344,30 @@ export function createApp(options = {}) {
         } catch (error) {
           output.destroy(); rmSync(pathname, { force: true });
           return send(res, bytes > maxBytes ? 413 : 400, { error: error.message });
+        } finally {
+          activeUploads--;
+          activeUploadOwners.delete(owner);
         }
-        const uploaded = { id, filename, storedName, sha256: sha.digest('hex'), size: bytes, createdAt: new Date().toISOString() };
+        const uploaded = { id, owner, filename, storedName, sha256: sha.digest('hex'), size: bytes, createdAt: new Date().toISOString() };
         uploads.set(id, uploaded);
         writeFileSync(join(dataDir, 'uploads', id + '.json'), JSON.stringify(uploaded));
         return send(res, 201, { id, filename, sha256: uploaded.sha256, size: bytes });
       }
       if (url.pathname === '/api/jobs' && method === 'GET') {
-        return send(res, 200, [...jobs.values()].map(publicJob).sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
+        return send(res, 200, [...jobs.values()].filter(job => job.owner === owner).map(publicJob).sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
       }
       if (url.pathname === '/api/jobs' && method === 'POST') {
         const body = await parseJson(req);
         const upload = uploads.get(body.uploadId);
+        if (upload && upload.owner !== owner) return send(res, 404, { error: 'Fichier introuvable' });
         const question = typeof body.question === 'string' ? body.question.trim() : '';
         if (!upload || !question || question.length > 2000 || body.authorized !== true) return send(res, 400, { error: 'Fichier, objectif et autorisation requis' });
         if ([...jobs.values()].some(j => j.uploadId === upload.id)) return send(res, 409, { error: 'Ce fichier est déjà associé à une tâche' });
+        if (queue.length >= MAX_QUEUED_GLOBAL || [...jobs.values()].filter(job => job.owner === owner && ['queued','running'].includes(job.status)).length >= 2)
+          return send(res, 429, { error: 'Trop de tâches actives. Réessayer une fois une analyse terminée.' });
         const id = randomUUID();
         mkdirSync(join(dataDir, 'jobs', id), { mode: 0o700 });
-        const job = { id, uploadId: upload.id, filename: upload.filename, sha256: upload.sha256, size: upload.size,
+        const job = { id, owner, uploadId: upload.id, filename: upload.filename, sha256: upload.sha256, size: upload.size,
           question, status: 'queued', createdAt: new Date().toISOString(), startedAt: null, endedAt: null, error: null, lines: [], report: null };
         jobs.set(id, job); persist(job); queue.push(id);
         setImmediate(launch);
@@ -323,7 +376,7 @@ export function createApp(options = {}) {
       const match = /^\/api\/jobs\/([a-f0-9-]{36})(?:\/(report|cancel))?$/.exec(url.pathname);
       if (match && VALID_ID.test(match[1])) {
         const job = jobs.get(match[1]);
-        if (!job) return send(res, 404, { error: 'Tâche introuvable' });
+        if (!job || job.owner !== owner) return send(res, 404, { error: 'Tâche introuvable' });
         if (!match[2] && method === 'GET') return send(res, 200, publicJob(job));
         if (match[2] === 'report' && method === 'GET') {
           if (!job.report) return send(res, 404, { error: 'Rapport absent' });
@@ -340,17 +393,7 @@ export function createApp(options = {}) {
         }
         if (!match[2] && method === 'DELETE') {
           if (['running', 'queued'].includes(job.status)) return send(res, 409, { error: 'Annuler avant suppression' });
-          rmSync(join(dataDir, 'jobs', job.id), { recursive: true, force: true });
-          jobs.delete(job.id);
-          const usedElsewhere = [...jobs.values()].some(j => j.uploadId === job.uploadId);
-          if (!usedElsewhere) {
-            const upload = uploads.get(job.uploadId);
-            if (upload) {
-              rmSync(join(dataDir, 'uploads', upload.storedName), { force: true });
-              rmSync(join(dataDir, 'uploads', upload.id + '.json'), { force: true });
-              uploads.delete(upload.id);
-            }
-          }
+          removeJobAndUpload(job);
           return send(res, 200, { deleted: true });
         }
       }
@@ -359,15 +402,12 @@ export function createApp(options = {}) {
       if (!res.headersSent) send(res, 500, { error: 'Erreur interne : ' + error.message });
     }
   });
+  server.on('close', () => clearInterval(janitor));
   return server;
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const host = process.env.REA_JEV_HOST || '127.0.0.1';
-  const token = process.env.REA_JEV_TOKEN || '';
-  if (!['localhost', '127.0.0.1', '::1'].includes(host) && token.length < 20) {
-    throw new Error('Définir REA_JEV_TOKEN (20 caractères minimum) pour une écoute distante');
-  }
   const port = Number(process.env.PORT || 3099);
   const server = createApp();
   server.listen(port, host, () => console.log('REA × Jev : http://' + host + ':' + port));
