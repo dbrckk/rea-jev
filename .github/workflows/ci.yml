@@ -19,17 +19,18 @@ jobs:
         run: bash -n scripts/*.sh
       - name: API tests
         run: npm test
-      - name: Real REA static APK smoke test
+      - name: Real REA Linux-compatible APK artifact smoke test
         run: |
           python3 - <<'PY'
           from zipfile import ZipFile
           with ZipFile('/tmp/rea-smoke.apk','w') as z:
               z.writestr('AndroidManifest.xml', '<manifest package="org.example.reasmoke"/>')
           PY
-          if ! timeout 90s ./node_modules/.bin/rea inspect-signature /tmp/rea-smoke.apk --json > /tmp/rea-smoke.json 2>/tmp/rea-smoke.err; then
+          ./node_modules/.bin/rea --help | head -n 70
+          if ! timeout 90s ./node_modules/.bin/rea inspect-artifact /tmp/rea-smoke.apk --json > /tmp/rea-smoke.json 2>/tmp/rea-smoke.err; then
             echo 'REA reported failure:'
             cat /tmp/rea-smoke.err
             head -c 4000 /tmp/rea-smoke.json
             exit 1
           fi
-          node -e "const x=JSON.parse(require('node:fs').readFileSync('/tmp/rea-smoke.json','utf8'));if(!x || typeof x!=='object') process.exit(2); console.log('REA APK signature scanner JSON validated')"
+          node -e "const x=JSON.parse(require('node:fs').readFileSync('/tmp/rea-smoke.json','utf8'));if(!x || typeof x!=='object') process.exit(2); console.log('REA static artifact scanner JSON validated')"
