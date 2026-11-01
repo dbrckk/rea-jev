@@ -7,6 +7,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
 import { finished } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
+import { runFreeAnalysis } from './free-worker.mjs';
 
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const DEFAULT_DATA = join(homedir(), '.rea-jev-gui');
@@ -78,6 +79,7 @@ export function createApp(options = {}) {
   const dataDir = resolve(options.dataDir || process.env.REA_JEV_DATA_DIR || DEFAULT_DATA);
   const pluginDir = resolve(options.pluginDir || process.env.REA_JEV_PLUGIN_DIR || join(ROOT, 'vendor', 'rea-jev'));
   const token = options.token ?? process.env.REA_JEV_TOKEN ?? '';
+  const engine = options.engine || process.env.REA_JEV_ENGINE || 'free';
   const maxBytes = Math.floor(Number(options.maxUploadMB || process.env.REA_JEV_MAX_UPLOAD_MB || 256) * 1024 * 1024);
   const timeoutMs = Math.floor(Number(process.env.REA_JEV_TIMEOUT_MIN || 30) * 60000);
   const maxTurns = Math.max(1, Math.min(150, Number(process.env.REA_JEV_MAX_TURNS || 35)));
@@ -112,7 +114,7 @@ export function createApp(options = {}) {
     } catch {}
   }
   function persist(job) {
-    const { lines, report, ...meta } = job;
+    const { lines, report, abort, ...meta } = job;
     writeFileSync(join(dataDir, 'jobs', job.id, 'job.json'), JSON.stringify(meta, null, 2));
   }
   function log(job, text) {
@@ -138,6 +140,24 @@ export function createApp(options = {}) {
       child = null; active = null; launch();
     };
     if (!upload) { finishJob('failed', 'Fichier source introuvable'); return; }
+    if (engine === 'free') {
+      const target = join(dataDir, 'uploads', upload.storedName);
+      const reportPath = join(dataDir, 'jobs', job.id, 'report.md');
+      const abort = new AbortController();
+      job.abort = abort;
+      void runFreeAnalysis({ target, filename:upload.filename, sha256:upload.sha256,
+        question:job.question, reportPath, signal:abort.signal,
+        log:message => log(job,message), onProcess:proc => { child = proc; } })
+        .then(result => {
+          if (existsSync(reportPath)) job.report = true;
+          if (job.status === 'cancelled') finishJob('cancelled');
+          else finishJob(result.ok ? 'done' : 'failed',
+            result.ok ? null : 'Aucune étape REA exploitable ; ouvrir le rapport pour le détail');
+        })
+        .catch(error => finishJob(job.status === 'cancelled' ? 'cancelled' : 'failed',
+          job.status === 'cancelled' ? null : error.message));
+      return;
+    }
     if (!existsSync(join(pluginDir, '.claude-plugin', 'plugin.json'))) {
       finishJob('failed', 'Plugin REA–Jev absent : exécuter bash scripts/setup.sh'); return;
     }
@@ -249,7 +269,7 @@ export function createApp(options = {}) {
         if (!valid) return send(res, 403, { error: 'Origine refusée' });
       }
       if (url.pathname === '/api/status' && method === 'GET') {
-        return send(res, 200, { claudeInstalled: commandAvailable('claude'), pluginInstalled: existsSync(join(pluginDir, '.claude-plugin', 'plugin.json')), jevConfigured: Boolean(process.env.TYPESAFE_API_KEY || process.env.OPENROUTER_API_KEY || process.env.CLAUDE_PLUGIN_OPTION_TYPESAFE_API_KEY), jadxInstalled: Boolean(process.env.REA_JADX_MCP_JAR ? existsSync(process.env.REA_JADX_MCP_JAR) : existsSync(join(homedir(), '.local', 'share', 'rea', 'android', 'jadx-headless-mcp-0.7.1-all.jar'))), javaInstalled: commandAvailable('java') && commandAvailable('javac'), ghidraConfigured: Boolean(process.env.GHIDRA_INSTALL_DIR && existsSync(process.env.GHIDRA_INSTALL_DIR)), running: active !== null, maxUploadMB: maxBytes / 1048576 });
+        return send(res, 200, { engine, reaInstalled: existsSync(join(ROOT, 'node_modules', '.bin', 'rea')), claudeInstalled: commandAvailable('claude'), pluginInstalled: existsSync(join(pluginDir, '.claude-plugin', 'plugin.json')), jevConfigured: Boolean(process.env.TYPESAFE_API_KEY || process.env.OPENROUTER_API_KEY || process.env.CLAUDE_PLUGIN_OPTION_TYPESAFE_API_KEY), jadxInstalled: Boolean(process.env.REA_JADX_MCP_JAR ? existsSync(process.env.REA_JADX_MCP_JAR) : existsSync(join(homedir(), '.local', 'share', 'rea', 'android', 'jadx-headless-mcp-0.7.1-all.jar'))), javaInstalled: commandAvailable('java') && commandAvailable('javac'), ghidraConfigured: Boolean(process.env.GHIDRA_INSTALL_DIR && existsSync(process.env.GHIDRA_INSTALL_DIR)), running: active !== null, maxUploadMB: maxBytes / 1048576 });
       }
       if (url.pathname === '/api/uploads' && method === 'POST') {
         if (req.headers['content-type'] !== 'application/octet-stream') return send(res, 415, { error: 'Envoyer un fichier brut' });
@@ -312,6 +332,7 @@ export function createApp(options = {}) {
         if (match[2] === 'cancel' && method === 'POST') {
           if (job.status === 'queued' || job.status === 'running') {
             job.status = 'cancelled'; job.endedAt = new Date().toISOString(); persist(job);
+            if (job.abort) job.abort.abort();
             if (active === job.id && child) stopProcess(child);
           }
           return send(res, 200, publicJob(job));
