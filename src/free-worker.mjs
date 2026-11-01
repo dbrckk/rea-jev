@@ -36,6 +36,7 @@ export function planAnalysis(type, question = '') {
   function add(command, description) { if (!plan.some(item => item.command === command)) plan.push({ command, description }); }
   if (type === 'apk') {
     add('inspect-artifact', 'Inventaire statique de l’archive APK');
+    add('identify-flutter-build', 'Détection de Flutter et des empreintes Dart AOT');
   } else if (type === 'pe') {
     add('inspect-pe-imports', 'Fonctions et dépendances Windows importées');
     add('inspect-binary-layout', 'Structure du binaire PE et sections');
@@ -67,6 +68,7 @@ function sanitize(value) {
 function extractFields(value) {
   if (!value || typeof value !== 'object') return [];
   const keys = ['evidence_id','parent_evidence_id','format','detected_format','file_type','type','architecture',
+    'provider','predicate_type','operation','analysis_profile','normalized_result',
     'status','coverage','limitations','unknowns','warnings','errors','package','summary','signers','mitigations'];
   return Object.entries(value).filter(([key,val]) => keys.includes(key) && val != null);
 }
