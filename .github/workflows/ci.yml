@@ -36,7 +36,7 @@ jobs:
           const x=JSON.parse(require('node:fs').readFileSync('/tmp/rea-smoke.json','utf8'));
           if (!x || typeof x!=='object') process.exit(2);
           console.log('REA scanner keys:', Object.keys(x).join(', '));
-          console.log('REA probes:', JSON.stringify(x.next_probes || x.next_steps || x.recommended_probes || []).slice(0, 1000));
+          console.log('REA summary:', JSON.stringify({normal:x.normalized_result, raw:x.raw_result, limitations:x.limitations}).slice(0, 2500));
           NODE
       - name: Probe real APK and SQLite support matrix
         run: |
