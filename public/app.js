@@ -1,13 +1,14 @@
 const el = id => document.getElementById(id);
-let token = localStorage.getItem('rea-token') || '';
 let selectedJob = null;
 let jobs = [];
-el('token').value = token;
+// A private, signed HttpOnly cookie is issued automatically. Nothing to enter.
+const sessionReady = fetch('/api/session', { credentials: 'same-origin', cache: 'no-store' })
+  .then(response => { if (!response.ok) throw new Error('Impossible de créer la session privée'); });
 
 async function api(path, options = {}) {
+  if (path !== '/api/session') await sessionReady;
   const headers = { ...(options.headers || {}) };
-  if (token) headers.Authorization = 'Bearer ' + token;
-  const response = await fetch(path, { ...options, headers, cache: 'no-store' });
+  const response = await fetch(path, { ...options, headers, cache: 'no-store', credentials: 'same-origin' });
   let body;
   if ((response.headers.get('content-type') || '').includes('application/json')) body = await response.json();
   else body = await response.text();
@@ -58,7 +59,7 @@ function renderDetail() {
     return;
   }
   el('detail-meta').textContent = job.filename + ' · SHA256 ' + job.sha256 + ' · ' + statusFr(job.status) + (job.error ? ' · ' + job.error : '');
-  el('logs').textContent = (job.lines || []).join('\n') || 'En attente du démarrage de l’agent…';
+  el('logs').textContent = (job.lines || []).join('\n') || 'En attente du démarrage de l’analyse…';
   if (job.hasReport) {
     el('detail-actions').append(action('Ouvrir le rapport', async () => {
       try {
@@ -110,17 +111,11 @@ async function refresh() {
          'REA–Jev : ' + (status.pluginInstalled ? 'présent' : 'absent'),
          'Clé Jev : ' + (status.jevConfigured ? 'configurée' : 'absente')].join('  ·  ');
   } catch (error) {
-    el('status-label').textContent = 'Connexion non autorisée / indisponible';
+    el('status-label').textContent = 'Connexion indisponible';
     el('status-dot').className = 'dot warn';
     el('system').textContent = error.message;
   }
 }
-el('save-token').addEventListener('click', () => {
-  token = el('token').value.trim();
-  if (token) localStorage.setItem('rea-token', token);
-  else localStorage.removeItem('rea-token');
-  refresh();
-});
 el('file').addEventListener('change', () => {
   const file = el('file').files[0];
   el('file-info').textContent = file ? file.name + ' — ' + niceBytes(file.size) : 'APK, EXE, bibliothèques, archives ou autre artefact';
@@ -143,6 +138,7 @@ el('start').addEventListener('click', async () => {
   }
   el('start').disabled = true;
   try {
+    await sessionReady;
     showMessage('Transfert du fichier…');
     const upload = await api('/api/uploads', { method: 'POST', headers: { 'Content-Type': 'application/octet-stream', 'X-Filename': encodeURIComponent(file.name) }, body: file });
     const job = await api('/api/jobs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ uploadId: upload.id, question, authorized: true }) });
