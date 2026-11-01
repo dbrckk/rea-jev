@@ -2,6 +2,7 @@ import { openSync, readSync, closeSync, statSync, existsSync, writeFileSync } fr
 import { extname, resolve, join } from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { choosePlan, explainFindings } from './openjev.mjs';
 
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const MAX_RESULT = 640 * 1024;
@@ -157,7 +158,7 @@ function execInspection(command, target, { timeoutMs, onProcess, signal }) {
 }
 export async function runFreeAnalysis({ target, filename, question, sha256, reportPath, log = () => {}, signal, onProcess }) {
   const type = detectType(target, filename);
-  const plan = planAnalysis(type, question);
+  const plan = await choosePlan(planAnalysis(type, question), { type, question }, log);
   log('Mode gratuit REA, sans API payante. Format détecté : ' + type);
   log('Plan REA : ' + plan.map(x => x.command).join(', '));
   const outcomes = [];
@@ -169,7 +170,9 @@ export async function runFreeAnalysis({ target, filename, question, sha256, repo
     log(result.ok ? 'Preuves enregistrées : ' + step.description : 'Étape non vérifiée : ' + result.error);
   }
   const report = buildReport({filename,sha256,size:statSync(target).size,type,question,outcomes});
-  writeFileSync(reportPath, report, { mode:0o600 });
+  const explanation = await explainFindings({question, type, outcomes}, log);
+  const complete = explanation ? report + '\n\n## Interprétation OpenJev (inférence IA, non preuve)\n\n' + explanation + '\n\nCe texte a été produit par DiffusionGemma avec le quota gratuit Codiv ; seule la sortie brute REA ci-dessus constitue une observation.\n' : report;
+  writeFileSync(reportPath, complete, { mode:0o600 });
   const successes = outcomes.filter(x => x.ok).length;
   return { ok: successes > 0, successCount: successes, plannedCount: outcomes.length };
 }
