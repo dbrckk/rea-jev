@@ -55,3 +55,19 @@ Références : [REA](https://github.com/morluto/rea), [plugin REA–Jev](https:/
 Le dashboard interroge automatiquement le fournisseur côté serveur (une requête System One courte, mise en cache cinq minutes). Il distingue : `NON CONNECTÉ`, `configuré mais non fonctionnel`, ou `CONNECTÉ — réponse vérifiée`. Les décisions sont enregistrées dans le rapport, avec probabilités et incertitudes ; aucune estimation Jev n'est traitée comme une preuve. Les requêtes Jev ne servent jamais à exécuter un fichier, lancer une commande arbitraire ou publier des données. Si une API externe est activée, de courts extraits d'observations sont transmis au fournisseur ; pas les octets du binaire.
 
 **État de la version déployée sans clé Codiv :** REA fonctionne, Jev/OpenJev **ne fonctionne pas encore** et ne peut être présenté comme actif. La création/connexion au compte tiers et la configuration de la clé serveur nécessitent l'autorisation et les identifiants de l'exploitant, pas un champ de jeton pour les visiteurs.
+
+## Activation réelle d'OpenJev sur le Render existant
+
+Le service `rea-jev-studio` tourne gratuitement sur Render et expose une interface sans jeton. Pour activer **la vraie intelligence System One OpenJev**, une authentification **entre le serveur et Codiv** est obligatoire. Aucune authentification n'est saisie par le visiteur.
+
+Une seule configuration par l'administrateur du service :
+
+1. Aller sur [Codiv](https://codiv.ai/), ouvrir le tableau de bord gratuit et générer une clé API (pas de carte bancaire dans l'offre gratuite publiée).
+2. Dans [Render → rea-jev-studio](https://dashboard.render.com/web/srv-dbjjrp49v7es73aap6c0), choisir **Environment → Add Environment Variable**, nom `CODIV_API_KEY`, valeur = clé personnelle ; **Save, deploy**.
+3. Ouvrir le [site](https://rea-jev-studio.onrender.com). La ligne **System One : OpenJev CONNECTÉ — réponse vérifiée** n'apparaît qu'après un aller-retour API réel. Si la clé est invalide, expirée, épuisée ou le réseau inaccessible, le site affiche un défaut et utilise les analyses REA déterministes.
+
+La clé doit être enregistrée exclusivement dans les variables secrètes Render : **ne pas la placer dans le dépôt GitHub, dans un champ de l'interface ni dans une discussion publique**.
+
+### Vérification technique et limites
+
+Le CI GitHub couvre les contrôles HTTP anonymes et d'isolation, les appels REA réels sur des fichiers synthétiques, et un enchaînement REA → quatre étapes Jev → rapport avec réponses HTTP **simulées**. Ces tests prouvent le câblage logiciel, **pas la connexion au modèle hébergé**. Seule la sonde serveur `GET /api/status` (via la session automatique) vérifie la connexion API véritable. Les décisions ne remplacent pas un agent de génération de code ni la décompilation JADX/Ghidra. Les sorties envoyées à Codiv sont des projections limitées des preuves REA : aucun octet du fichier source n'est transmis par ce chemin, même si des informations techniques sur le fichier sont partagées avec le service tiers.
