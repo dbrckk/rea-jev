@@ -25,7 +25,7 @@ Définir le jeton `REA_JEV_TOKEN` (20 caractères minimum) dans l'étape Bluepri
 
 ## Exécution sur un serveur existant (optionnel, aucune installation sur Android)
 
-Node 24.15+ :
+Node 24.22.1+ :
 
 ```bash
 git clone https://github.com/dbrckk/rea-jev.git
