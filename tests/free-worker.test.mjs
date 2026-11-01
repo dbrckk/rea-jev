@@ -32,5 +32,5 @@ test('report attributes real REA evidence, marks missing observations and exclud
       {command:'inspect-artifact',description:'Conteneur',ok:false,error:'unsupported format'}]});
   assert.match(report,/ev_42/);
   assert.match(report,/Non vérifié/);
-  assert.match(report,/Jev / OpenJev : non connecté/);
+  assert.match(report,/Jev \/ OpenJev : non connecté/);
 });
