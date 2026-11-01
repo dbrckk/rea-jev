@@ -184,7 +184,7 @@ export async function runFreeAnalysis({ target, filename, question, sha256, repo
       : 'Jev System One : NON CONNECTÉ (' + jevStatus.connectionCheck.reason + ') — mode statique de secours');
   }
   const jevOptions = { configuration: jevStatus.connectionCheck?.connected === false
-    ? { ...jevStatus, enabled:false } : jevStatus };
+    ? { ...jevStatus, enabled:false } : jevStatus, gates: new Map() };
   const plan = await choosePlan(planAnalysis(type, question), { type, question }, log, jevDecisions, jevOptions);
   log('Mode gratuit REA, sans API payante. Format détecté : ' + type);
   log('Plan REA : ' + plan.map(x => x.command).join(', '));
