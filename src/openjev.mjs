@@ -13,7 +13,7 @@ const DEFAULT_TIMEOUT = 7500;
 const SAFE_STATIC_COMMANDS = new Set([
   'inspect-artifact', 'inspect-binary-layout', 'inspect-pe-imports',
   'inspect-pe-certificates', 'inspect-elf-notes', 'inspect-sqlite-database',
-  'inspect-model-artifact', 'analyze-javascript-application'
+  'inspect-model-artifact', 'analyze-javascript-application', 'identify-flutter-build'
 ]);
 
 export function jevConfiguration(env = process.env) {
