@@ -330,6 +330,8 @@ export function createApp(options = {}) {
         const pathname = join(dataDir, 'uploads', storedName);
         const sha = createHash('sha256');
         const output = createWriteStream(pathname, { flags: 'wx', mode: 0o600 });
+        // Prevent an unhandled stream error from crashing the public service on disk-full or I/O failure.
+        output.on('error', () => {});
         let bytes = 0;
         try {
           for await (const chunk of req) {
