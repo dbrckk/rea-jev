@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#101621">
+  <title>REA × Jev — Console d'analyse</title>
+  <link rel="stylesheet" href="/app.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="brand-icon">R<span>×</span>J</span><span><b>REA × Jev</b><small>WORKSPACE / REVERSE ENGINEERING</small></span></div>
+    <div class="tag"><span id="status-dot" class="dot"></span><span id="status-label">Connexion…</span></div>
+  </header>
+  <main class="layout">
+    <section class="intro">
+      <span class="eyebrow">INVESTIGATION STUDIO</span>
+      <h1>Déposez un logiciel.<br><em>Explorez son fonctionnement.</em></h1>
+      <p>Analyse statique orchestrée par Claude Code avec REA pour l'inspection et Jev pour l'aide à la décision. Aucun binaire fourni n'est exécuté volontairement.</p>
+    </section>
+    <div class="columns">
+      <section class="panel upload-panel" aria-labelledby="new-title">
+        <div class="section-head"><div><span class="eyebrow">01 / NOUVELLE ANALYSE</span><h2 id="new-title">Importer un fichier</h2></div><span class="tag">APK · EXE · DLL · ELF · ZIP · …</span></div>
+        <label id="dropzone" class="dropzone" for="file">
+          <span class="upload-icon">↑</span>
+          <strong>Choisir un fichier ou le glisser ici</strong>
+          <small id="file-info">APK, EXE, bibliothèques, archives ou autre artefact</small>
+          <input id="file" type="file">
+        </label>
+        <label class="field-label" for="question">Que doit chercher l'agent ?</label>
+        <textarea id="question" rows="4" maxlength="2000" placeholder="Ex. Comprendre l'architecture, les composants, les appels réseau déclarés et la logique de connexion. Séparer preuves et hypothèses."></textarea>
+        <label class="check"><input type="checkbox" id="authorized"><span>Je confirme être autorisé à analyser ce fichier.</span></label>
+        <button id="start" class="primary" type="button">Lancer l'investigation <span>↗</span></button>
+        <p id="form-message" class="message" aria-live="polite"></p>
+        <div class="divider"></div>
+        <div class="auth-row"><label for="token">Jeton privé du serveur</label><div class="token-controls"><input id="token" type="password" placeholder="Optionnel en localhost" autocomplete="off"><button id="save-token" type="button">Appliquer</button></div></div>
+        <p class="hint">Jeton conservé uniquement dans cet onglet. Le serveur doit disposer de Claude Code et du plugin REA–Jev.</p>
+      </section>
+      <section class="panel jobs-panel" aria-labelledby="jobs-title">
+        <div class="section-head"><div><span class="eyebrow">02 / SUIVI</span><h2 id="jobs-title">Analyses</h2></div><button type="button" id="refresh" class="subtle">Actualiser</button></div>
+        <div id="jobs" class="jobs"><p class="placeholder">Aucune tâche chargée.</p></div>
+        <div class="divider"></div>
+        <div class="system-status" id="system">Vérification des dépendances…</div>
+      </section>
+    </div>
+    <section class="panel detail-panel" aria-labelledby="detail-title">
+      <div class="section-head"><div><span class="eyebrow">03 / PREUVES ET DIAGNOSTICS</span><h2 id="detail-title">Journal d'investigation</h2></div><div id="detail-actions" class="actions"></div></div>
+      <div class="meta" id="detail-meta">Sélectionnez une analyse pour afficher sa progression.</div>
+      <pre id="logs" class="logs" aria-live="polite">Le journal apparaîtra ici.</pre>
+      <div id="report" class="report"></div>
+    </section>
+  </main>
+  <footer>REA × Jev · Analyses locales par défaut · Résultats dépendants des moteurs disponibles et de l'agent configuré</footer>
+</body>
+</html>
