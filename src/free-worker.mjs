@@ -132,6 +132,16 @@ export function buildReport({ filename, size, sha256, type, question, outcomes, 
   return lines.join('\n');
 }
 
+function inspectionEnvironment() {
+  // Never pass Codiv, TypeSafe, GitHub or infrastructure credentials to a subprocess
+  // parsing an untrusted binary. Only execution prerequisites are inherited.
+  const safe = ['PATH', 'HOME', 'USER', 'TMPDIR', 'TMP', 'TEMP', 'LANG',
+    'LC_ALL', 'SYSTEMROOT', 'SystemRoot', 'WINDIR', 'REA_JADX_MCP_JAR'];
+  const env = Object.fromEntries(safe.filter(key => process.env[key] !== undefined)
+    .map(key => [key, process.env[key]]));
+  env.NODE_OPTIONS = '--max-old-space-size=320';
+  return env;
+}
 function execInspection(command, target, { timeoutMs, onProcess, signal }) {
   const binary = process.env.REA_CLI || join(ROOT, 'node_modules', '.bin', process.platform === 'win32' ? 'rea.cmd' : 'rea');
   return new Promise(resolveResult => {
@@ -141,7 +151,7 @@ function execInspection(command, target, { timeoutMs, onProcess, signal }) {
     let outputSize = 0, stderr = '', oversized = false, timedOut = false, settled = false;
     let proc;
     try {
-      proc = spawn(binary, args, { cwd: ROOT, env: { ...process.env, NODE_OPTIONS: '--max-old-space-size=320' },
+      proc = spawn(binary, args, { cwd: ROOT, env: inspectionEnvironment(),
         shell: false, detached: process.platform !== 'win32', stdio: ['ignore','pipe','pipe'], signal });
     } catch(e) { return resolveResult({ ok:false, error: String(e.message) }); }
     if (onProcess) onProcess(proc);
@@ -186,7 +196,7 @@ export async function runFreeAnalysis({ target, filename, question, sha256, repo
   const jevOptions = { configuration: jevStatus.connectionCheck?.connected === false
     ? { ...jevStatus, enabled:false } : jevStatus, gates: new Map() };
   const plan = await choosePlan(planAnalysis(type, question), { type, question }, log, jevDecisions, jevOptions);
-  log('Mode gratuit REA, sans API payante. Format détecté : ' + type);
+  log('REA statique ; moteur de décision : ' + (jevStatus.connectionCheck?.connected ? jevStatus.provider : 'règles locales') + '. Format : ' + type);
   log('Plan REA : ' + plan.map(x => x.command).join(', '));
   const outcomes = [];
   for (const step of plan) {
