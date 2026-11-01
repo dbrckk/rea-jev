@@ -67,7 +67,8 @@ test('HTTP: token, raw upload, queue, errors, deletion and assets', async () => 
     assert.equal(result.status, 'failed');
     assert.match(result.error, /REA|exploitable/);
     const report = await req('/api/jobs/' + job.id + '/report');
-    assert.equal(report.status, 404);
+    assert.equal(report.status, 200);
+    assert.match(await report.text(), /Non vérifié/);
     const list = await req('/api/jobs');
     assert.equal((await list.json()).length, 1);
     const removed = await req('/api/jobs/' + job.id, { method: 'DELETE' });
