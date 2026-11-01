@@ -17,6 +17,8 @@ export REA_JEV_TOKEN="$(openssl rand -hex 24)"
 npm start
 ```
 
+Le script installe le plugin upstream à une révision fixe, et, si Java/Javac sont présents, télécharge la version du moteur JADX indiquée par REA après contrôle SHA-256. Pour les APK sans JDK, installer un JDK complet et lancer `bash scripts/install-android.sh`. Pour l'analyse native profonde (EXE/ELF), configurer Ghidra 12.1.x dans `GHIDRA_INSTALL_DIR`.
+
 Ouvrir http://127.0.0.1:3099 sur le même PC. Pour un Android relié à un serveur, préférer un tunnel SSH ou un réseau privé (ex. Tailscale) et définir REA_JEV_HOST=0.0.0.0 avec REA_JEV_TOKEN obligatoire. L'interface est pensée pour un usage privé, **pas** pour être publiée sans authentification HTTPS et isolation renforcée.
 
 ```bash
