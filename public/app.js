@@ -103,6 +103,9 @@ async function refresh() {
       'Claude Code : ' + (status.claudeInstalled ? 'présent' : 'absent'),
       'REA–Jev : ' + (status.pluginInstalled ? 'présent' : 'absent'),
       'Clé Jev : ' + (status.jevConfigured ? 'configurée' : 'absente (mode REA seul)'),
+      'JADX : ' + (status.jadxInstalled ? 'présent' : 'absent'),
+      'Java : ' + (status.javaInstalled ? 'présent' : 'absent'),
+      'Ghidra : ' + (status.ghidraConfigured ? 'configuré' : 'non configuré'),
       'Limite : ' + status.maxUploadMB + ' Mio'
     ].join('  ·  ');
   } catch (error) {
