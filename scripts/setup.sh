@@ -24,6 +24,13 @@ else
   echo "Claude Code introuvable. Installation recommandée : npm install -g @anthropic-ai/claude-code"
   echo "L'authentification Claude Code reste nécessaire et peut être payante."
 fi
-echo "Pré-requis REA : Node, Ghidra/Hopper pour natif ; Java + JADX JAR headless pour APK."
+if command -v java >/dev/null && command -v javac >/dev/null; then
+  if ! bash scripts/install-android.sh; then
+    echo "Installation du moteur APK impossible ; les autres formats restent disponibles."
+  fi
+else
+  echo "Installer un JDK complet 17+ pour les APK, puis lancer : bash scripts/install-android.sh"
+fi
+echo "Analyse native profonde : installer Ghidra 12.1.x et définir GHIDRA_INSTALL_DIR."
 echo "Au premier démarrage de l'agent, REA 6.5.0 sera installé via le mécanisme npx du plugin."
 echo "Démarrage : npm start"
