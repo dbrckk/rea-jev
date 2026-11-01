@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  jevConfiguration, requestJev, choosePlan, gateInspection, reviewEvidence, evaluateCompleteness
+  jevConfiguration, requestJev, choosePlan, gateInspection, reviewEvidence, evaluateCompleteness, probeJev
 } from '../src/openjev.mjs';
 
 const cfg = {
@@ -81,4 +81,17 @@ test('Jev cannot command execution or change static command allowlist',async()=>
     ()=>{},decisions,{configuration:cfg,fetcher:fake}),false);
   assert.equal(await gateInspection({command:'rm -rf'}, {type:'apk',question:'Analyze'},
     ()=>{},decisions,{configuration:cfg,fetcher:fake}),false);
+});
+
+test('readiness verifies genuine System One request; never claims success on unauthorized response',async()=>{
+  const ok = await probeJev({ configuration:cfg, fetcher:fakeJev([]) });
+  assert.equal(ok.connected,true);
+  assert.equal(ok.checked,true);
+  assert.equal(ok.model,'openjev-0.1');
+  const no = await probeJev({ configuration:cfg, fetcher:async()=>({ok:false,status:401}) });
+  assert.equal(no.connected,false);
+  assert.equal(no.reason,'HTTP 401');
+  const absent = await probeJev({configuration:{enabled:false,availability:'server-key-missing'}});
+  assert.equal(absent.checked,false);
+  assert.equal(absent.connected,false);
 });
