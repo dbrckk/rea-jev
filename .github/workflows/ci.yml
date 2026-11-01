@@ -13,5 +13,7 @@ jobs:
           node-version: '22'
       - name: Syntax
         run: npm run check
+      - name: Shell scripts syntax
+        run: bash -n scripts/*.sh
       - name: API tests
         run: npm test
