@@ -9,6 +9,8 @@ import { createApp } from '../src/server.mjs';
 test('HTTP: token, raw upload, queue, errors, deletion and assets', async () => {
   const dataDir = mkdtempSync(join(tmpdir(), 'rea-jev-test-'));
   const token = 'this-is-a-long-auth-token';
+  const originalRea = process.env.REA_CLI;
+  process.env.REA_CLI = join(dataDir, 'missing-rea');
   const app = createApp({ dataDir, token, engine: 'free', maxUploadMB: 0.05, pluginDir: join(dataDir, 'not-installed') });
   app.listen(0, '127.0.0.1');
   await once(app, 'listening');
@@ -73,6 +75,8 @@ test('HTTP: token, raw upload, queue, errors, deletion and assets', async () => 
     assert.equal(readdirSync(join(dataDir, 'jobs')).length, 0);
     assert.equal(readdirSync(join(dataDir, 'uploads')).length, 0);
   } finally {
+    if (originalRea === undefined) delete process.env.REA_CLI;
+    else process.env.REA_CLI = originalRea;
     await new Promise(r => app.close(r));
     rmSync(dataDir, { recursive: true, force: true });
   }
