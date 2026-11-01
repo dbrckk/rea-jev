@@ -26,12 +26,36 @@ jobs:
           with ZipFile('/tmp/rea-smoke.apk','w') as z:
               z.writestr('AndroidManifest.xml', '<manifest package="org.example.reasmoke"/>')
           PY
-          ./node_modules/.bin/rea --help > /tmp/rea-help.txt
-          head -n 70 /tmp/rea-help.txt
           if ! timeout 90s ./node_modules/.bin/rea inspect-artifact /tmp/rea-smoke.apk --json > /tmp/rea-smoke.json 2>/tmp/rea-smoke.err; then
             echo 'REA reported failure:'
             cat /tmp/rea-smoke.err
             head -c 4000 /tmp/rea-smoke.json
             exit 1
           fi
-          node -e "const x=JSON.parse(require('node:fs').readFileSync('/tmp/rea-smoke.json','utf8'));if(!x || typeof x!=='object') process.exit(2); console.log('REA static artifact scanner JSON validated')"
+          node - <<'NODE'
+          const x=JSON.parse(require('node:fs').readFileSync('/tmp/rea-smoke.json','utf8'));
+          if (!x || typeof x!=='object') process.exit(2);
+          console.log('REA scanner keys:', Object.keys(x).join(', '));
+          console.log('REA probes:', JSON.stringify(x.next_probes || x.next_steps || x.recommended_probes || []).slice(0, 1000));
+          NODE
+      - name: Probe real APK and SQLite support matrix
+        run: |
+          python3 - <<'PY'
+          import sqlite3
+          c=sqlite3.connect('/tmp/rea-smoke.sqlite')
+          c.execute('CREATE TABLE demo (id INTEGER PRIMARY KEY, title TEXT NOT NULL)')
+          c.execute('INSERT INTO demo (title) VALUES (?)', ('REA test',))
+          c.commit()
+          c.close()
+          PY
+          for entry in 'inspect-android-package /tmp/rea-smoke.apk' 'identify-flutter-build /tmp/rea-smoke.apk' 'inspect-sqlite-database /tmp/rea-smoke.sqlite'; do
+            set -- $entry
+            echo "--- REA $1 ---"
+            if timeout 45s ./node_modules/.bin/rea "$1" "$2" --json > /tmp/rea-probe.json 2>/tmp/rea-probe.err; then
+              node -e "const x=JSON.parse(require('node:fs').readFileSync('/tmp/rea-probe.json','utf8'));console.log(JSON.stringify({ok:true,keys:Object.keys(x),format:x.format||null}).slice(0,500))"
+            else
+              head -c 600 /tmp/rea-probe.err
+              head -c 600 /tmp/rea-probe.json
+            fi
+            echo
+          done
