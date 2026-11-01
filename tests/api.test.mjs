@@ -9,7 +9,7 @@ import { createApp } from '../src/server.mjs';
 test('HTTP: token, raw upload, queue, errors, deletion and assets', async () => {
   const dataDir = mkdtempSync(join(tmpdir(), 'rea-jev-test-'));
   const token = 'this-is-a-long-auth-token';
-  const app = createApp({ dataDir, token, maxUploadMB: 0.05, pluginDir: join(dataDir, 'not-installed') });
+  const app = createApp({ dataDir, token, engine: 'free', maxUploadMB: 0.05, pluginDir: join(dataDir, 'not-installed') });
   app.listen(0, '127.0.0.1');
   await once(app, 'listening');
   const base = 'http://127.0.0.1:' + app.address().port;
@@ -28,7 +28,7 @@ test('HTTP: token, raw upload, queue, errors, deletion and assets', async () => 
     }
     const status = await req('/api/status');
     assert.equal(status.status, 200);
-    assert.equal((await status.json()).pluginInstalled, false);
+    assert.equal((await status.json()).engine, 'free');
     const badContent = await req('/api/uploads', { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: 'test' });
     assert.equal(badContent.status, 415);
     const tooBig = await req('/api/uploads', { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: Buffer.alloc(60000, 7) });
@@ -63,7 +63,7 @@ test('HTTP: token, raw upload, queue, errors, deletion and assets', async () => 
       await new Promise(r => setTimeout(r, 25));
     }
     assert.equal(result.status, 'failed');
-    assert.match(result.error, /Plugin/);
+    assert.match(result.error, /REA|exploitable/);
     const report = await req('/api/jobs/' + job.id + '/report');
     assert.equal(report.status, 404);
     const list = await req('/api/jobs');
