@@ -148,6 +148,9 @@ export function createApp(options = {}) {
     const target = join(dataDir, 'uploads', upload.storedName);
     const jadxJar = join(homedir(), '.local', 'share', 'rea', 'android', 'jadx-headless-mcp-0.7.1-all.jar');
     const agentEnv = { ...process.env, REA_JEV_MODE: process.env.REA_JEV_MODE || 'advise' };
+    delete agentEnv.REA_JEV_TOKEN;
+    delete agentEnv.GITHUB_TOKEN;
+    delete agentEnv.GH_TOKEN;
     if (!agentEnv.REA_JADX_MCP_JAR && existsSync(jadxJar)) agentEnv.REA_JADX_MCP_JAR = jadxJar;
     const prompt = [
       'Effectue une enquête de rétro-ingénierie STRICTEMENT STATIQUE sur le fichier autorisé ci-dessous.',
