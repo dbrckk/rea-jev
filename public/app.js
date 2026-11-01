@@ -104,10 +104,11 @@ async function refresh() {
     el('status-label').textContent = ready ? 'Moteur prêt' : 'Moteur indisponible';
     el('status-dot').className = 'dot ' + (ready ? 'ready' : 'warn');
     el('system').textContent = status.engine === 'free'
-      ? ['REA gratuit : ' + (status.reaInstalled ? 'installé' : 'absent'),
-         'OpenJev : ' + (status.openJevEnabled ? 'activé (quota gratuit)' : 'non configuré'),
-         'Sans clé : analyse REA locale uniquement',
-         'Fichiers conservés temporairement sur le serveur',
+      ? ['REA : ' + (status.reaInstalled ? 'opérationnel' : 'indisponible'),
+         'System One : ' + (status.jevAvailability === 'configured-not-verified'
+           ? ((status.jevProvider === 'codiv' ? 'OpenJev' : 'Jev TypeSafe') + ' configuré (appel réel à confirmer)')
+           : 'NON CONNECTÉ — décisions par règles locales'),
+         'Rapports et preuves séparés par session',
          'Limite : ' + status.maxUploadMB + ' Mio'].join('  ·  ')
       : ['Claude Code : ' + (status.claudeInstalled ? 'présent' : 'absent'),
          'REA–Jev : ' + (status.pluginInstalled ? 'présent' : 'absent'),
