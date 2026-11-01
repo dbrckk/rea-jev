@@ -1,6 +1,7 @@
 const el = id => document.getElementById(id);
 let selectedJob = null;
 let jobs = [];
+let maxUploadBytes = 30 * 1048576;
 // A private, signed HttpOnly cookie is issued automatically. Nothing to enter.
 const sessionReady = fetch('/api/session', { credentials: 'same-origin', cache: 'no-store' })
   .then(response => { if (!response.ok) throw new Error('Impossible de créer la session privée'); });
@@ -96,6 +97,7 @@ async function refresh() {
   try {
     const [data, status] = await Promise.all([api('/api/jobs'), api('/api/status')]);
     jobs = data;
+    maxUploadBytes = Number(status.maxUploadMB || 30) * 1048576;
     if (!selectedJob || !jobs.some(j => j.id === selectedJob)) selectedJob = jobs[0]?.id || null;
     renderJobs(); renderDetail();
     const ready = status.engine === 'free' ? status.reaInstalled : (status.claudeInstalled && status.pluginInstalled);
@@ -119,6 +121,7 @@ async function refresh() {
 el('file').addEventListener('change', () => {
   const file = el('file').files[0];
   el('file-info').textContent = file ? file.name + ' — ' + niceBytes(file.size) : 'APK, EXE, bibliothèques, archives ou autre artefact';
+  if (file && file.size > maxUploadBytes) showMessage('Fichier trop volumineux pour ce service gratuit (' + niceBytes(maxUploadBytes) + ' maximum).', true);
 });
 const drop = el('dropzone');
 drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('dragging'); });
@@ -133,9 +136,8 @@ drop.addEventListener('drop', e => {
 el('start').addEventListener('click', async () => {
   const file = el('file').files[0];
   const question = el('question').value.trim();
-  if (!file || !question || !el('authorized').checked) {
-    return showMessage('Fichier, objectif et autorisation sont obligatoires.', true);
-  }
+  if (!file || !question) return showMessage('Choisir un fichier et indiquer une consigne.', true);
+  if (file.size > maxUploadBytes) return showMessage('Fichier trop volumineux (' + niceBytes(maxUploadBytes) + ' maximum).', true);
   el('start').disabled = true;
   try {
     await sessionReady;
