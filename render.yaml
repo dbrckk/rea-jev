@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: rea-jev-studio
+    runtime: node
+    region: frankfurt
+    plan: free
+    branch: main
+    buildCommand: npm install --omit=dev --no-audit --no-fund
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_VERSION
+        value: 24.15.0
+      - key: REA_JEV_ENGINE
+        value: free
+      - key: REA_JEV_HOST
+        value: 0.0.0.0
+      - key: REA_JEV_MAX_UPLOAD_MB
+        value: "30"
+      - key: REA_JEV_TIMEOUT_MIN
+        value: "10"
+      - key: REA_JEV_TOKEN
+        sync: false
