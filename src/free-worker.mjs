@@ -2,7 +2,7 @@ import { openSync, readSync, closeSync, statSync, existsSync, writeFileSync } fr
 import { extname, resolve, join } from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { choosePlan, gateInspection, reviewEvidence, evaluateCompleteness, explainFindings, jevConfiguration } from './openjev.mjs';
+import { choosePlan, gateInspection, reviewEvidence, evaluateCompleteness, explainFindings, jevConfiguration, probeJev } from './openjev.mjs';
 
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const MAX_RESULT = 640 * 1024;
@@ -114,6 +114,7 @@ export function buildReport({ filename, size, sha256, type, question, outcomes, 
   const checked = jevDecisions.filter(d => d.model);
   lines.push('## Décisions System One', '');
   if (!jevStatus?.enabled) lines.push('**Jev / OpenJev : non connecté.** Aucune décision IA n’a été exécutée ; le routage REA est effectué par règles locales.', '');
+  else if (jevStatus.connectionCheck?.connected === false) lines.push('**Jev configuré mais NON CONNECTÉ** : ' + jevStatus.connectionCheck.reason + '. Les règles locales ont été utilisées.', '');
   else if (!checked.length) lines.push('**Jev configuré mais aucune décision API confirmée.** Ne pas confondre configuration et fonctionnement validé.', '');
   else {
     lines.push('**Moteur :** ' + (jevStatus.provider === 'codiv' ? 'OpenJev (Codiv, gratuit sous quota)' : 'Jev TypeSafe (payant)'),
@@ -174,13 +175,21 @@ export async function runFreeAnalysis({ target, filename, question, sha256, repo
   const type = detectType(target, filename);
   const jevStatus = jevConfiguration();
   const jevDecisions = [];
-  const plan = await choosePlan(planAnalysis(type, question), { type, question }, log, jevDecisions);
+  if (jevStatus.enabled) {
+    jevStatus.connectionCheck = await probeJev();
+    log(jevStatus.connectionCheck.connected
+      ? 'Jev System One : connecté (' + jevStatus.connectionCheck.model + ')'
+      : 'Jev System One : NON CONNECTÉ (' + jevStatus.connectionCheck.reason + ') — mode statique de secours');
+  }
+  const jevOptions = { configuration: jevStatus.connectionCheck?.connected === false
+    ? { ...jevStatus, enabled:false } : jevStatus };
+  const plan = await choosePlan(planAnalysis(type, question), { type, question }, log, jevDecisions, jevOptions);
   log('Mode gratuit REA, sans API payante. Format détecté : ' + type);
   log('Plan REA : ' + plan.map(x => x.command).join(', '));
   const outcomes = [];
   for (const step of plan) {
     if (signal?.aborted) throw new Error('Analyse annulée');
-    const permitted = await gateInspection(step, { type, question }, log, jevDecisions);
+    const permitted = await gateInspection(step, { type, question }, log, jevDecisions, jevOptions);
     if (signal?.aborted) throw new Error('Analyse annulée');
     if (!permitted) {
       outcomes.push({ ...step, ok: false, error: 'Vérification de portée Jev : analyse écartée' });
@@ -191,12 +200,12 @@ export async function runFreeAnalysis({ target, filename, question, sha256, repo
     const outcome = { ...step, ...result };
     outcomes.push(outcome);
     log(result.ok ? 'Preuves enregistrées : ' + step.description : 'Étape non vérifiée : ' + result.error);
-    if (result.ok) await reviewEvidence(outcome, { question }, log, jevDecisions);
+    if (result.ok) await reviewEvidence(outcome, { question }, log, jevDecisions, jevOptions);
   }
   if (signal?.aborted) throw new Error('Analyse annulée');
-  await evaluateCompleteness({ question, outcomes }, log, jevDecisions);
+  await evaluateCompleteness({ question, outcomes }, log, jevDecisions, jevOptions);
   const report = buildReport({filename,sha256,size:statSync(target).size,type,question,outcomes, jevDecisions, jevStatus});
-  const explanation = await explainFindings({question, type, outcomes}, log);
+  const explanation = await explainFindings({question, type, outcomes}, log, jevOptions);
   const complete = explanation ? report + '\n\n## Interprétation OpenJev (inférence IA, non preuve)\n\n' + explanation + '\n\nCe texte a été produit par DiffusionGemma avec le quota gratuit Codiv ; seule la sortie brute REA ci-dessus constitue une observation.\n' : report;
   writeFileSync(reportPath, complete, { mode:0o600 });
   const successes = outcomes.filter(x => x.ok).length;
