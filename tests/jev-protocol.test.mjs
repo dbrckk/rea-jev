@@ -81,6 +81,9 @@ test('Jev cannot command execution or change static command allowlist',async()=>
     ()=>{},decisions,{configuration:cfg,fetcher:fake}),false);
   assert.equal(await gateInspection({command:'rm -rf'}, {type:'apk',question:'Analyze'},
     ()=>{},decisions,{configuration:cfg,fetcher:fake}),false);
+  // A low Jev opinion cannot veto safe passive reads or replace deterministic safety policy.
+  assert.equal(await gateInspection({command:'inspect-artifact'}, {type:'apk',question:'Analyze'},
+    ()=>{},decisions,{configuration:cfg,fetcher:fake}),true);
 });
 
 test('readiness verifies genuine System One request; never claims success on unauthorized response',async()=>{
