@@ -26,7 +26,7 @@ jobs:
           with ZipFile('/tmp/rea-smoke.apk','w') as z:
               z.writestr('AndroidManifest.xml', '<manifest package="org.example.reasmoke"/>')
           PY
-          if ! timeout 90s ./node_modules/.bin/rea inspect-apk-signature /tmp/rea-smoke.apk --json > /tmp/rea-smoke.json 2>/tmp/rea-smoke.err; then
+          if ! timeout 90s ./node_modules/.bin/rea inspect-signature /tmp/rea-smoke.apk --json > /tmp/rea-smoke.json 2>/tmp/rea-smoke.err; then
             echo 'REA reported failure:'
             cat /tmp/rea-smoke.err
             head -c 4000 /tmp/rea-smoke.json
