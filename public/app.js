@@ -97,17 +97,17 @@ async function refresh() {
     jobs = data;
     if (!selectedJob || !jobs.some(j => j.id === selectedJob)) selectedJob = jobs[0]?.id || null;
     renderJobs(); renderDetail();
-    el('status-label').textContent = status.claudeInstalled && status.pluginInstalled ? 'Prêt à analyser' : 'Configuration requise';
-    el('status-dot').className = 'dot ' + (status.claudeInstalled && status.pluginInstalled ? 'ready' : 'warn');
-    el('system').textContent = [
-      'Claude Code : ' + (status.claudeInstalled ? 'présent' : 'absent'),
-      'REA–Jev : ' + (status.pluginInstalled ? 'présent' : 'absent'),
-      'Clé Jev : ' + (status.jevConfigured ? 'configurée' : 'absente (mode REA seul)'),
-      'JADX : ' + (status.jadxInstalled ? 'présent' : 'absent'),
-      'Java : ' + (status.javaInstalled ? 'présent' : 'absent'),
-      'Ghidra : ' + (status.ghidraConfigured ? 'configuré' : 'non configuré'),
-      'Limite : ' + status.maxUploadMB + ' Mio'
-    ].join('  ·  ');
+    const ready = status.engine === 'free' ? status.reaInstalled : (status.claudeInstalled && status.pluginInstalled);
+    el('status-label').textContent = ready ? 'Moteur prêt' : 'Moteur indisponible';
+    el('status-dot').className = 'dot ' + (ready ? 'ready' : 'warn');
+    el('system').textContent = status.engine === 'free'
+      ? ['REA gratuit : ' + (status.reaInstalled ? 'installé' : 'absent'),
+         'Analyse statique sans crédit IA',
+         'Fichiers conservés temporairement sur le serveur',
+         'Limite : ' + status.maxUploadMB + ' Mio'].join('  ·  ')
+      : ['Claude Code : ' + (status.claudeInstalled ? 'présent' : 'absent'),
+         'REA–Jev : ' + (status.pluginInstalled ? 'présent' : 'absent'),
+         'Clé Jev : ' + (status.jevConfigured ? 'configurée' : 'absente')].join('  ·  ');
   } catch (error) {
     el('status-label').textContent = 'Connexion non autorisée / indisponible';
     el('status-dot').className = 'dot warn';
