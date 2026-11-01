@@ -146,6 +146,9 @@ export function createApp(options = {}) {
     try { tools = getSafeTools(pluginDir); }
     catch (error) { finishJob('failed', String(error.message)); return; }
     const target = join(dataDir, 'uploads', upload.storedName);
+    const jadxJar = join(homedir(), '.local', 'share', 'rea', 'android', 'jadx-headless-mcp-0.7.1-all.jar');
+    const agentEnv = { ...process.env, REA_JEV_MODE: process.env.REA_JEV_MODE || 'advise' };
+    if (!agentEnv.REA_JADX_MCP_JAR && existsSync(jadxJar)) agentEnv.REA_JADX_MCP_JAR = jadxJar;
     const prompt = [
       'Effectue une enquête de rétro-ingénierie STRICTEMENT STATIQUE sur le fichier autorisé ci-dessous.',
       'Active le workflow reverse-engineer du plugin rea-jev et utilise explicitement les outils MCP REA. Jev fournit les évaluations rapides si sa clé est configurée.',
@@ -168,7 +171,7 @@ export function createApp(options = {}) {
     let timedOut = false;
     let resultError = false;
     try {
-      child = spawn('claude', args, { cwd: join(dataDir, 'jobs', id), shell: false, detached: process.platform !== 'win32', stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, REA_JEV_MODE: process.env.REA_JEV_MODE || 'advise' } });
+      child = spawn('claude', args, { cwd: join(dataDir, 'jobs', id), shell: false, detached: process.platform !== 'win32', stdio: ['ignore', 'pipe', 'pipe'], env: agentEnv });
     } catch (error) { finishJob('failed', String(error.message)); return; }
     timer = setTimeout(() => { timedOut = true; log(job, 'Limite de temps atteinte'); stopProcess(child); }, timeoutMs);
     timer.unref();
@@ -243,7 +246,7 @@ export function createApp(options = {}) {
         if (!valid) return send(res, 403, { error: 'Origine refusée' });
       }
       if (url.pathname === '/api/status' && method === 'GET') {
-        return send(res, 200, { claudeInstalled: commandAvailable('claude'), pluginInstalled: existsSync(join(pluginDir, '.claude-plugin', 'plugin.json')), jevConfigured: Boolean(process.env.TYPESAFE_API_KEY || process.env.OPENROUTER_API_KEY || process.env.CLAUDE_PLUGIN_OPTION_TYPESAFE_API_KEY), running: active !== null, maxUploadMB: maxBytes / 1048576 });
+        return send(res, 200, { claudeInstalled: commandAvailable('claude'), pluginInstalled: existsSync(join(pluginDir, '.claude-plugin', 'plugin.json')), jevConfigured: Boolean(process.env.TYPESAFE_API_KEY || process.env.OPENROUTER_API_KEY || process.env.CLAUDE_PLUGIN_OPTION_TYPESAFE_API_KEY), jadxInstalled: Boolean(process.env.REA_JADX_MCP_JAR ? existsSync(process.env.REA_JADX_MCP_JAR) : existsSync(join(homedir(), '.local', 'share', 'rea', 'android', 'jadx-headless-mcp-0.7.1-all.jar'))), javaInstalled: commandAvailable('java') && commandAvailable('javac'), ghidraConfigured: Boolean(process.env.GHIDRA_INSTALL_DIR && existsSync(process.env.GHIDRA_INSTALL_DIR)), running: active !== null, maxUploadMB: maxBytes / 1048576 });
       }
       if (url.pathname === '/api/uploads' && method === 'POST') {
         if (req.headers['content-type'] !== 'application/octet-stream') return send(res, 415, { error: 'Envoyer un fichier brut' });
