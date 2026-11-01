@@ -26,5 +26,10 @@ jobs:
           with ZipFile('/tmp/rea-smoke.apk','w') as z:
               z.writestr('AndroidManifest.xml', '<manifest package="org.example.reasmoke"/>')
           PY
-          timeout 90s ./node_modules/.bin/rea inspect-apk-signature /tmp/rea-smoke.apk --json > /tmp/rea-smoke.json
+          if ! timeout 90s ./node_modules/.bin/rea inspect-apk-signature /tmp/rea-smoke.apk --json > /tmp/rea-smoke.json 2>/tmp/rea-smoke.err; then
+            echo 'REA reported failure:'
+            cat /tmp/rea-smoke.err
+            head -c 4000 /tmp/rea-smoke.json
+            exit 1
+          fi
           node -e "const x=JSON.parse(require('node:fs').readFileSync('/tmp/rea-smoke.json','utf8'));if(!x || typeof x!=='object') process.exit(2); console.log('REA APK signature scanner JSON validated')"
